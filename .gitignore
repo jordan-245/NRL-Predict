@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Data (large files)
+data/raw/rlp/*.html
+data/raw/odds/*.xlsx
+data/raw/nrl_stats/*.json
+data/processed/*.parquet
+data/features/*.parquet
+scraping/cache/*.html
+
+# Outputs
+outputs/models/*.pkl
+outputs/models/*.joblib
+outputs/models/*.pt
+outputs/predictions/*.csv
+outputs/predictions/*.json
+outputs/reports/*.html
+outputs/reports/*.pdf
+outputs/figures/*.png
+outputs/figures/*.svg
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

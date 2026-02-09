@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "nrl-predictor"
+version = "0.1.0"
+description = "NRL match winner prediction model using ML"
+requires-python = ">=3.10"
+dependencies = [
+    # Core
+    "pandas>=2.0",
+    "numpy",
+    "pyarrow",
+
+    # Scraping
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+    "tqdm",
+
+    # ML
+    "scikit-learn",
+    "xgboost",
+    "lightgbm",
+    "catboost",
+    "optuna",
+
+    # Deep Learning
+    "torch",
+
+    # Evaluation & Viz
+    "matplotlib",
+    "seaborn",
+    "shap",
+    "plotly",
+
+    # Data
+    "openpyxl",
+    "pyyaml",
+
+    # Utilities
+    "joblib",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "jupyter",
+    "ipykernel",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

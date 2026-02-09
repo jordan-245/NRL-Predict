@@ -1,0 +1,243 @@
+# ==========================================================================
+# Feature Engineering Configuration
+# NRL Match Winner Prediction Project
+# ==========================================================================
+# This file controls which feature groups are included in each versioned
+# feature set, the rolling-window sizes used for aggregation, head-to-head
+# lookback options, and Elo rating system defaults.
+#
+# Consumed by processing/feature_engineering.py via PyYAML.
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# Feature group definitions
+# --------------------------------------------------------------------------
+# Each group corresponds to a logical block of features computed by the
+# feature engineering pipeline.  Groups can be toggled on or off per
+# feature-set version below.
+
+feature_groups:
+  elo:
+    description: "Elo / power-rating features (pre-match Elo for each team, Elo differential)"
+  home_away:
+    description: "Binary home/away indicator and historical home/away win rates"
+  ladder:
+    description: "Current ladder position, win percentage, for/against ratio, points differential"
+  rest_days:
+    description: "Days since last match, short-turnaround flag, bye-week indicator"
+  round_context:
+    description: "Round number, is-finals flag, day-of-week, time slot, season year"
+  rolling_form:
+    description: "Rolling win rate, points scored/conceded, margin, try rate over configurable windows"
+  h2h:
+    description: "Head-to-head historical record between the two teams"
+  schedule_fatigue:
+    description: "Travel distance estimate, games in last 14/21 days, back-to-back flag"
+  lineup_strength:
+    description: "Aggregate career stats of starting XIII, debutant count, lineup stability"
+  key_players:
+    description: "Spine-player continuity (halfback, fullback, hooker), positional change count"
+  venue:
+    description: "Venue encoding, traditional-home-ground flag, venue historical margin"
+  advanced_stats:
+    description: "Possession %, completion rate, run metres, tackle stats (requires NRL-Data source)"
+  odds:
+    description: "Opening head-to-head odds, implied probability, line movement, handicap spread"
+  weather:
+    description: "Temperature, rainfall, wind speed, humidity at match time/venue"
+
+
+# --------------------------------------------------------------------------
+# Feature set versions
+# --------------------------------------------------------------------------
+# Each version lists the feature groups it includes.  The pipeline selects
+# one version at training / prediction time.  Versions are additive: each
+# successive version builds on the previous one.
+
+feature_sets:
+  v1_basic:
+    description: "Minimal baseline features"
+    groups:
+      - elo
+      - home_away
+      - ladder
+      - rest_days
+      - round_context
+
+  v2_form:
+    description: "v1 + rolling form and head-to-head history"
+    groups:
+      - elo
+      - home_away
+      - ladder
+      - rest_days
+      - round_context
+      - rolling_form
+      - h2h
+      - schedule_fatigue
+
+  v3_lineup:
+    description: "v2 + lineup experience and key-player availability"
+    groups:
+      - elo
+      - home_away
+      - ladder
+      - rest_days
+      - round_context
+      - rolling_form
+      - h2h
+      - schedule_fatigue
+      - lineup_strength
+      - key_players
+      - venue
+
+  v4_advanced:
+    description: "v3 + advanced match statistics (possession, completions, run metres)"
+    groups:
+      - elo
+      - home_away
+      - ladder
+      - rest_days
+      - round_context
+      - rolling_form
+      - h2h
+      - schedule_fatigue
+      - lineup_strength
+      - key_players
+      - venue
+      - advanced_stats
+
+  v5_odds:
+    description: "v4 + opening bookmaker odds as features"
+    groups:
+      - elo
+      - home_away
+      - ladder
+      - rest_days
+      - round_context
+      - rolling_form
+      - h2h
+      - schedule_fatigue
+      - lineup_strength
+      - key_players
+      - venue
+      - advanced_stats
+      - odds
+
+  v6_weather:
+    description: "v5 + weather conditions at match time"
+    groups:
+      - elo
+      - home_away
+      - ladder
+      - rest_days
+      - round_context
+      - rolling_form
+      - h2h
+      - schedule_fatigue
+      - lineup_strength
+      - key_players
+      - venue
+      - advanced_stats
+      - odds
+      - weather
+
+
+# --------------------------------------------------------------------------
+# Rolling window configuration
+# --------------------------------------------------------------------------
+# Window sizes (in number of games) used for computing rolling aggregations
+# such as win rate, points scored, and margin of victory.
+
+rolling_windows:
+  window_sizes: [3, 5, 8, 10]
+
+  # Exponentially-weighted moving average half-life (in games).
+  # Used as an alternative to fixed windows for recency weighting.
+  ewma_half_lives: [3, 5, 8]
+
+  # Metrics to aggregate over each window.
+  metrics:
+    - win_rate
+    - points_scored
+    - points_conceded
+    - points_differential
+    - try_scoring_rate
+    - margin
+
+
+# --------------------------------------------------------------------------
+# Head-to-head lookback options
+# --------------------------------------------------------------------------
+# Controls how far back the pipeline looks when computing H2H features
+# between two teams.
+
+h2h_lookback:
+  # Maximum number of previous meetings to consider.
+  last_n_meetings: [3, 5, 10]
+
+  # Time-based lookback: only consider meetings within the last N years.
+  last_n_years: [3, 5]
+
+  # Metrics computed from H2H history.
+  metrics:
+    - win_rate
+    - avg_margin
+    - avg_points_scored
+    - avg_points_conceded
+
+
+# --------------------------------------------------------------------------
+# Elo rating system defaults
+# --------------------------------------------------------------------------
+# Sensible starting values for the Elo-based power rating. These are used
+# unless overridden by the Optuna hyperparameter search.
+
+elo:
+  # K-factor: controls how much each result shifts the ratings.
+  # Higher K = more reactive; lower K = more stable.
+  k_factor: 20
+
+  # Additional Elo points granted to the home team before comparison.
+  home_advantage: 50
+
+  # Season-reset factor applied between seasons.
+  # 1.0 = no reset (carry full rating forward).
+  # 0.0 = full reset to initial rating.
+  # 0.75 = regress 25 % toward the mean between seasons.
+  season_reset_factor: 0.75
+
+  # Initial Elo rating assigned to every team at the start of the
+  # historical window (and to expansion teams on entry).
+  initial_rating: 1500
+
+  # Whether to adjust Elo changes by margin of victory.
+  margin_of_victory_adjustment: true
+
+  # Margin-of-victory scaling method: "linear" or "logarithmic".
+  mov_scaling: "logarithmic"
+
+  # Search ranges for Optuna tuning.
+  tuning_ranges:
+    k_factor: [15, 20, 25, 30, 40]
+    home_advantage: [30, 40, 50, 60]
+    season_reset_factor: [0.5, 0.6, 0.75, 1.0]
+    mov_scaling: ["none", "linear", "logarithmic"]
+
+
+# --------------------------------------------------------------------------
+# Training window options
+# --------------------------------------------------------------------------
+# Controls how much historical data the model sees during training.
+
+training_windows:
+  # Use all available data from START_YEAR to the test year.
+  full_history: true
+
+  # Alternative: use only the most recent N seasons.
+  recent_seasons_options: [3, 5]
+
+  # Recency weighting: exponential decay half-life in seasons.
+  # Applied when full_history is true to down-weight older samples.
+  recency_half_life_seasons: 4

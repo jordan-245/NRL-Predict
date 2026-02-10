@@ -48,6 +48,7 @@ TEAM_ALIASES: dict[str, list[str]] = {
     "Canterbury Bulldogs": [
         "Canterbury",
         "Canterbury-Bankstown Bulldogs",
+        "Canterbury Bankstown Bulldogs",
         "Canterbury-Bankstown",
         "Bulldogs",
         "CBY",
@@ -56,6 +57,7 @@ TEAM_ALIASES: dict[str, list[str]] = {
     "Cronulla Sharks": [
         "Cronulla",
         "Cronulla-Sutherland Sharks",
+        "Cronulla Sutherland Sharks",
         "Cronulla-Sutherland",
         "Sharks",
         "CRO",
@@ -72,6 +74,7 @@ TEAM_ALIASES: dict[str, list[str]] = {
     "Manly Sea Eagles": [
         "Manly",
         "Manly-Warringah Sea Eagles",
+        "Manly Warringah Sea Eagles",
         "Manly-Warringah",
         "Sea Eagles",
         "MAN",

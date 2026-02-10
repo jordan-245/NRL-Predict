@@ -67,7 +67,7 @@ USER_AGENT: str = os.getenv(
 # Season / year boundaries
 # ---------------------------------------------------------------------------
 START_YEAR: int = int(os.getenv("START_YEAR", "2013"))
-END_YEAR: int = int(os.getenv("END_YEAR", "2025"))
+END_YEAR: int = int(os.getenv("END_YEAR", "2026"))
 PREDICT_YEAR: int = int(os.getenv("PREDICT_YEAR", "2026"))
 
 # ---------------------------------------------------------------------------

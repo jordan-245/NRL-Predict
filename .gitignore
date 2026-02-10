@@ -11,6 +11,7 @@ build/
 .venv/
 venv/
 env/
+.env
 
 # Data (large files)
 data/raw/rlp/*.html
@@ -23,6 +24,7 @@ scraping/cache/*.html
 # Outputs
 outputs/models/*.pkl
 outputs/models/*.joblib
+outputs/model_cache/*.joblib
 outputs/models/*.pt
 outputs/predictions/*.csv
 outputs/predictions/*.json

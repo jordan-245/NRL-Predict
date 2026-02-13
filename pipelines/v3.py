@@ -44,7 +44,7 @@ from catboost import CatBoostClassifier
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 warnings.filterwarnings("ignore")
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"

@@ -1,13 +1,14 @@
 """
-NRL 2026 Match Predictor - V3 OptBlend Model
-=============================================
-Predicts NRL match winners using the V3 OptBlend ensemble.
+NRL 2026 Tipping Comp Predictor
+================================
+Simple tipping strategy: always tip the odds favourite, use model to
+break ties on close games, margin from the spread. 10 min per round.
 
-The model blends 7 base models (XGBoost, LightGBM, CatBoost, LogReg,
-plus top-50-feature variants) with bookmaker odds using optimized weights.
-
-Backtested performance (walk-forward 2018-2025):
-  Accuracy: 68.4%  |  Log Loss: 0.5977  |  Beats bookmaker odds on all metrics
+Strategy:
+  1. Clear favourites (>7% prob gap): tip odds favourite
+  2. Close games (<7% prob gap): use V4 OptBlend model as tiebreaker
+  3. Margin: from bookmaker spread (e.g. spread=-5.5 → margin=6)
+  4. Game day: flip tip if starting halfback/fullback scratched from close game
 
 Usage:
     python predict_round.py --auto                    # fetch from Odds API, auto-detect round
@@ -64,32 +65,31 @@ UPCOMING_DIR = PROJECT_ROOT / "data" / "upcoming"
 MODEL_CACHE_DIR = PROJECT_ROOT / "outputs" / "model_cache"
 CONFIG_DIR = PROJECT_ROOT / "config"
 
-# Import V3 feature building functions
-import run_enhance_and_retrain as v3
+# Import feature building functions
+from pipelines import v3
+from pipelines import v4
 
 # =====================================================================
-# V3 OptBlend Model Specification
+# Model Specification: V4 GBM params + V5-tuned RF/weights
 # =====================================================================
 
-# Tuned hyperparameters (from V3 Optuna search)
-BEST_XGB_PARAMS = v3.BEST_XGB_PARAMS
-BEST_LGB_PARAMS = v3.BEST_LGB_PARAMS
-BEST_CAT_PARAMS = v3.BEST_CAT_PARAMS
-
-# OptBlend weights (optimized across 2018-2025 walk-forward folds)
-BLEND_WEIGHTS = {
-    "XGBoost":   1.025,
-    "LightGBM": -0.599,
-    "CatBoost":  0.281,
-    "LogReg":    0.054,
-    "XGB_top50": -1.126,
-    "LGB_top50":  0.540,
-    "CAT_top50":  0.005,
+BEST_XGB_PARAMS = v4.BEST_XGB_PARAMS
+BEST_LGB_PARAMS = v4.BEST_LGB_PARAMS
+BEST_CAT_PARAMS = v4.BEST_CAT_PARAMS
+# V5-tuned RF params (improved from 0.6066 to 0.6053 log loss)
+BEST_RF_PARAMS = {
+    'n_estimators': 234, 'max_depth': 10, 'min_samples_leaf': 23,
+    'max_features': 'sqrt', 'random_state': 42, 'n_jobs': -1,
 }
-BLEND_ODDS_WEIGHT = 0.819  # 1 - sum(model weights)
+SAMPLE_WEIGHT_DECAY = 0.920  # V5-tuned (was 0.907)
 
-# V3 feature column specification (141 features)
+# V4 OptBlend weights (optimized across 2018-2025 walk-forward folds)
+BLEND_WEIGHTS = v4.V4_BLEND_WEIGHTS
+BLEND_ODDS_WEIGHT = v4.V4_BLEND_ODDS_WEIGHT
+
+# V4 feature column specification (194 features)
 FEATURE_COLS = [
+    # === V3 BASE FEATURES (131) ===
     # Elo (4)
     "home_elo", "away_elo", "home_elo_prob", "elo_diff",
     # Rolling form 3/5/8 (30)
@@ -138,7 +138,7 @@ FEATURE_COLS = [
     "home_avg_halftime_lead_5", "away_avg_halftime_lead_5",
     "home_avg_penalty_diff_5", "away_avg_penalty_diff_5",
     "halftime_lead_diff", "penalty_diff_diff",
-    # Engineered interactions (18)
+    # V3 Engineered interactions (18)
     "elo_diff_sq", "elo_diff_abs",
     "odds_elo_diff", "odds_elo_abs_diff",
     "home_attack_defense_3", "away_attack_defense_3", "attack_defense_diff_3",
@@ -146,6 +146,32 @@ FEATURE_COLS = [
     "comp_points_ratio", "home_strength", "away_strength", "strength_diff",
     "elo_x_rest", "ladder_x_finals",
     "home_away_split_diff", "venue_wr_diff",
+    # === V4 NEW FEATURES (~63) ===
+    # V4 Enhanced Odds (13)
+    "spread_home_close", "spread_movement", "spread_movement_abs",
+    "odds_spread_agree", "odds_spread_disagree_mag",
+    "total_line_close", "total_movement", "total_movement_abs",
+    "implied_draw_prob", "draw_competitiveness",
+    "odds_home_range_close", "odds_away_range_close",
+    "market_confidence",
+    # V4 Scoring Consistency & Trends (31)
+    *[f"{side}_{stat}_{w}" for w in [5,8] for side in ["home","away"]
+      for stat in ["pf_std","pa_std","close_game_rate","pf_trend","pa_trend"]],
+    *[f"{stat}_{w}" for w in [5,8]
+      for stat in ["pf_std_diff","close_game_diff","pf_trend_diff","pa_trend_diff"]],
+    "home_scoring_cv_5", "away_scoring_cv_5", "scoring_cv_diff_5",
+    # V4 Attendance (2)
+    "attendance_normalized", "attendance_high",
+    # V4 Kickoff (3)
+    "is_night_game", "is_afternoon_game", "is_day_game",
+    # V4 Lineup Stability (3)
+    "home_lineup_stability", "away_lineup_stability", "lineup_stability_diff",
+    # V4 Engineered Interactions (14)
+    "is_early_season", "is_mid_season", "is_late_season",
+    "elo_diff_x_late", "elo_diff_x_early", "form_x_late",
+    "home_defense_improving", "away_defense_improving", "defense_trend_diff",
+    "scoring_env_ratio", "fav_consistency",
+    "elo_spread_agree", "strong_team_rested", "home_ground_x_form",
 ]
 
 
@@ -393,6 +419,12 @@ def _refresh_odds_in_features(cached_feat: pd.DataFrame,
             elo_prob = row.get("home_elo_prob", 0.5)
             feat.at[i, "odds_elo_diff"] = p_home - elo_prob
             feat.at[i, "odds_elo_abs_diff"] = abs(p_home - elo_prob)
+            feat.at[i, "h2h_home"] = h2h_h
+            feat.at[i, "h2h_away"] = h2h_a
+        # Update spread from fresh API data
+        spread = match.iloc[0].get("spread_home")
+        if pd.notna(spread):
+            feat.at[i, "spread_home"] = spread
     return feat
 
 
@@ -450,6 +482,10 @@ def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFr
     results["odds_away_prob"] = 1.0 - odds_probs
     results["tip"] = np.where(blended >= 0.5, results["home_team"], results["away_team"])
     results["confidence"] = np.abs(blended - 0.5) * 2
+    # Carry through spread and decimal odds for tipping sheet
+    for col in ["spread_home", "h2h_home", "h2h_away"]:
+        if col in upcoming_feat.columns:
+            results[col] = upcoming_feat[col].values
     for name, probs in predictions.items():
         results[f"model_{name}"] = probs
     return results
@@ -478,7 +514,7 @@ def _filter_match(results: pd.DataFrame, match_str: str) -> pd.DataFrame:
 def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
                    odds: pd.DataFrame, upcoming: pd.DataFrame,
                    elo_params: dict) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
-    """Build V3 features for all matches and return train/predict splits.
+    """Build V4 features for all matches and return train/predict splits.
 
     Returns (train_features, predict_features, feature_cols).
     """
@@ -497,10 +533,10 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     # Track which rows are upcoming (NaN scores)
     is_upcoming = all_matches["home_score"].isna()
 
-    print(f"\n  Building V3 features for {len(all_matches)} matches "
+    print(f"\n  Building features for {len(all_matches)} matches "
           f"({is_upcoming.sum()} upcoming)...")
 
-    # Run full V3 feature pipeline
+    # Run full V3 base feature pipeline
     all_matches = v3.backfill_elo(all_matches, elo_params)
     all_matches = v3.compute_rolling_form_features(all_matches)
     all_matches = v3.compute_h2h_features(all_matches)
@@ -511,13 +547,21 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     all_matches = v3.compute_contextual_features(all_matches)
     all_matches = v3.compute_engineered_features(all_matches)
 
+    # Run V4 enhanced feature pipeline
+    all_matches = v4.compute_v4_odds_features(all_matches)
+    all_matches = v4.compute_scoring_consistency_features(all_matches)
+    all_matches = v4.compute_attendance_features(all_matches)
+    all_matches = v4.compute_kickoff_features(all_matches)
+    all_matches = v4.compute_lineup_stability_features(all_matches)
+    all_matches = v4.compute_v4_engineered_features(all_matches)
+
     # Create target
     all_matches["home_win"] = np.where(
         all_matches["home_score"] > all_matches["away_score"], 1.0,
         np.where(all_matches["home_score"] < all_matches["away_score"], 0.0, np.nan)
     )
 
-    # Use V3 feature spec (filter to columns that exist)
+    # Use V4 feature spec (filter to columns that exist)
     feature_cols = [c for c in FEATURE_COLS if c in all_matches.columns]
 
     # Ensure numeric
@@ -564,7 +608,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     Returns (results_df, artifacts_dict).  Artifacts are cached for fast
     re-scoring with updated odds.
     """
-    print("\n  Training V3 OptBlend ensemble...")
+    print("\n  Training OptBlend ensemble...")
 
     X_train_raw = historical[feature_cols].copy()
     y_train = historical["home_win"].values
@@ -573,7 +617,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     # Sample weights (exponential decay favouring recent seasons)
     train_years = historical["year"].values
     max_yr = train_years.max()
-    sample_weights = 0.9 ** (max_yr - train_years)
+    sample_weights = SAMPLE_WEIGHT_DECAY ** (max_yr - train_years)
 
     # Training medians (cached for fast re-scoring)
     medians = X_train_raw.median()
@@ -670,6 +714,10 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     results["odds_away_prob"] = 1.0 - odds_probs
     results["tip"] = np.where(blended >= 0.5, results["home_team"], results["away_team"])
     results["confidence"] = np.abs(blended - 0.5) * 2  # 0 = coin flip, 1 = certain
+    # Carry through spread and decimal odds for tipping sheet
+    for col in ["spread_home", "h2h_home", "h2h_away"]:
+        if col in upcoming.columns:
+            results[col] = upcoming[col].values
 
     # Individual model predictions (for transparency)
     for name, probs in predictions.items():
@@ -692,59 +740,47 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
 # =====================================================================
 
 def format_predictions(results: pd.DataFrame, round_num: int, year: int):
-    """Print predictions in a clean, tipping-competition-friendly format."""
-    print()
-    print("=" * 70)
-    print(f"  NRL {year} - ROUND {round_num} PREDICTIONS")
-    print(f"  Model: V3 OptBlend (68.4% accuracy / 0.5977 log loss)")
-    print("=" * 70)
+    """Print predictions as a tipping card with LOCK/LEAN/TOSS-UP categories.
 
+    Strategy (based on 2025 data: favourite only won 62.4%):
+      - LOCK (fav >= 65%): Always tip favourite
+      - LEAN (fav 55-65%): Default favourite, flip if model strongly disagrees
+      - TOSS-UP (fav < 55%): Use model prediction
+      - MARGIN: from bookmaker spread or odds-implied
+    """
+    from tipping_advisor import (
+        get_tip, print_tips, calculate_implied_prob,
+    )
+
+    tips = []
     for _, row in results.iterrows():
         home = row["home_team"]
         away = row["away_team"]
-        hp = row["home_win_prob"] * 100
-        ap = row["away_win_prob"] * 100
-        tip = row["tip"]
-        conf = row["confidence"]
 
-        # Confidence label
-        if conf >= 0.40:
-            conf_label = "VERY HIGH"
-        elif conf >= 0.20:
-            conf_label = "HIGH"
-        elif conf >= 0.10:
-            conf_label = "MEDIUM"
-        else:
-            conf_label = "LOW"
+        # Get decimal odds
+        h2h_home = row.get("h2h_home")
+        h2h_away = row.get("h2h_away")
 
-        # Odds comparison
-        odds_hp = row["odds_home_prob"] * 100
-        edge = row["home_win_prob"] - row["odds_home_prob"]
-        edge_str = f"Edge: {edge:+.1%}" if abs(edge) > 0.02 else ""
+        # Fallback: convert from implied prob if no decimal odds
+        if pd.isna(h2h_home) or pd.isna(h2h_away):
+            odds_hp = row["odds_home_prob"]
+            odds_ap = row["odds_away_prob"]
+            overround = 1.05
+            h2h_home = overround / odds_hp if odds_hp > 0 else 2.0
+            h2h_away = overround / odds_ap if odds_ap > 0 else 2.0
 
-        print(f"\n  {home} ({hp:.1f}%)  vs  {away} ({ap:.1f}%)")
+        # Model prediction = home_win_prob from OptBlend
+        model_pred = row["home_win_prob"]
 
-        venue = row.get("venue", "")
-        date = row.get("date", "")
-        if pd.notna(venue) and str(venue).strip():
-            date_str = pd.to_datetime(date).strftime("%a %d %b") if pd.notna(date) else ""
-            print(f"  {venue}  {date_str}")
+        # Spread for margin
+        spread = row.get("spread_home")
+        spread = spread if pd.notna(spread) else None
 
-        print(f"  >>> TIP: {tip:<30s} Confidence: {conf_label}")
-        if edge_str:
-            print(f"      Odds implied: {odds_hp:.1f}%  |  Model: {hp:.1f}%  |  {edge_str}")
+        tip = get_tip(home, away, h2h_home, h2h_away,
+                      model_pred=model_pred, spread=spread)
+        tips.append(tip)
 
-    # Summary
-    print("\n" + "-" * 70)
-    print("  TIPS SUMMARY")
-    print("-" * 70)
-    for _, row in results.iterrows():
-        home = row["home_team"]
-        away = row["away_team"]
-        tip = row["tip"]
-        prob = max(row["home_win_prob"], row["away_win_prob"]) * 100
-        print(f"  {home:<30s} vs {away:<30s} -> {tip} ({prob:.0f}%)")
-    print("=" * 70)
+    print_tips(tips, round_num, year)
 
 
 def save_predictions(results: pd.DataFrame, round_num: int, year: int):
@@ -771,7 +807,7 @@ def load_upcoming_from_api(round_num: int | None, year: int) -> tuple[pd.DataFra
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NRL Match Predictor - V3 OptBlend")
+    parser = argparse.ArgumentParser(description="NRL Tipping Comp Predictor")
     parser.add_argument("--round", type=int, default=None,
                         help="Round number (auto-detected with --auto)")
     parser.add_argument("--year", type=int, default=2026, help="Season year (default: 2026)")

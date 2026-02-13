@@ -137,6 +137,27 @@ def _extract_best_odds(event: dict) -> tuple[float | None, float | None]:
     return (None, None)
 
 
+def _extract_spread(event: dict) -> float | None:
+    """Extract average home spread (handicap) across all bookmakers.
+
+    Returns the home team's spread (e.g. -5.5 means home favoured by 5.5).
+    """
+    home_team = event["home_team"]
+    spreads: list[float] = []
+
+    for bookmaker in event.get("bookmakers", []):
+        for market in bookmaker.get("markets", []):
+            if market["key"] != "spreads":
+                continue
+            for outcome in market.get("outcomes", []):
+                if outcome["name"] == home_team and "point" in outcome:
+                    spreads.append(outcome["point"])
+
+    if spreads:
+        return sum(spreads) / len(spreads)
+    return None
+
+
 # =====================================================================
 # Public API
 # =====================================================================
@@ -261,15 +282,17 @@ def get_upcoming_round(
         round_num = detect_next_round(events, year)
         print(f"  Auto-detected round: {round_num}")
 
-    # Step 3: Get odds (1 credit)
-    print("  Fetching odds from Odds API (1 credit)...")
-    odds_data = get_odds(regions="au", markets="h2h", odds_format="decimal")
+    # Step 3: Get odds (1 credit for h2h + spreads combined)
+    print("  Fetching odds from Odds API (h2h + spreads)...")
+    odds_data = get_odds(regions="au", markets="h2h,spreads", odds_format="decimal")
 
     # Build odds lookup by event ID
     odds_lookup: dict[str, tuple[float | None, float | None]] = {}
+    spread_lookup: dict[str, float | None] = {}
     for event in odds_data:
         eid = event["id"]
         odds_lookup[eid] = _extract_best_odds(event)
+        spread_lookup[eid] = _extract_spread(event)
 
     # Step 4: Filter events to next round window
     # NRL rounds run Thu-Mon (~4 days) but opening/split rounds can span
@@ -306,6 +329,7 @@ def get_upcoming_round(
 
         eid = event["id"]
         h2h_home, h2h_away = odds_lookup.get(eid, (None, None))
+        home_spread = spread_lookup.get(eid)
 
         rows.append({
             "home_team": home,
@@ -319,6 +343,7 @@ def get_upcoming_round(
             "away_score": np.nan,
             "h2h_home": h2h_home,
             "h2h_away": h2h_away,
+            "spread_home": home_spread,
         })
 
     df = pd.DataFrame(rows)

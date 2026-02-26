@@ -234,7 +234,7 @@ def send_lineup_alert(round_num: int, year: int = 2026) -> bool:
 
 
 def send_submit_confirmation(
-    round_num: int, n_tips: int, joker_desc: str = "", year: int = 2026
+    round_num: int, n_tips: int, year: int = 2026
 ) -> bool:
     """Send confirmation that tips were submitted to ESPN Footytips."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -280,8 +280,6 @@ def send_submit_confirmation(
 
     lines.append("")
     lines.append(f"✅ <b>{n_tips} tips submitted</b> to ESPN Footytips")
-    if joker_desc:
-        lines.append(f"🃏 Joker: {_esc(joker_desc)}")
 
     return send_message("\n".join(lines))
 
@@ -340,8 +338,7 @@ def main():
     elif cmd == "submit":
         round_num = int(sys.argv[2]) if len(sys.argv) > 2 else 1
         n_tips = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-        joker = sys.argv[4] if len(sys.argv) > 4 else ""
-        ok = send_submit_confirmation(round_num, n_tips, joker)
+        ok = send_submit_confirmation(round_num, n_tips)
     elif cmd == "refresh":
         round_num = int(sys.argv[2]) if len(sys.argv) > 2 else None
         ok = send_refresh_summary(round_num)

@@ -22,9 +22,6 @@ Usage:
     # Submit only game 1
     python scripts/footytips_submit.py --round 1 --game 1
 
-    # Submit with joker on most confident pick
-    python scripts/footytips_submit.py --round 1 --joker
-
 API notes:
     - Events endpoint: /sports/{sport}/leagues/{league}/events/game-types/tipping/rounds/{round}
     - Tips submit:     /games/sports/{sport}/leagues/{league}/game-types/tipping/rounds/{round}
@@ -218,15 +215,6 @@ def submit_tips(round_num: int, tips: list[dict], headers: dict) -> dict:
     return resp.json()
 
 
-def submit_joker(round_num: int, event_id: int, headers: dict) -> dict:
-    """Submit joker for a specific event."""
-    url = f"{API_BASE}/games/sports/{SPORT}/leagues/{LEAGUE}/game-types/{GAME_TYPE}/rounds/{round_num}/jokers"
-    payload = {"jokers": [event_id]}
-    resp = requests.post(url, headers=headers, json=payload, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
-
-
 # ---------------------------------------------------------------------------
 # Prediction loading
 # ---------------------------------------------------------------------------
@@ -308,12 +296,9 @@ def build_tips(
 ) -> tuple[list[dict], int | None, str | None]:
     """Build the tips array for API submission.
 
-    Returns (tips, best_joker_event_id, best_joker_desc).
+    Returns list of tip dicts.
     """
     tips = []
-    best_confidence = 0.0
-    best_joker_event_id = None
-    best_joker_desc = None
 
     for pred, event in matched:
         event_id = event["eventId"]
@@ -348,14 +333,7 @@ def build_tips(
 
         tips.append(tip)
 
-        # Track most confident pick for joker
-        confidence = pred["confidence"]
-        if confidence > best_confidence:
-            best_confidence = confidence
-            best_joker_event_id = event_id
-            best_joker_desc = f"{pred['tip']} ({confidence:.1%})"
-
-    return tips, best_joker_event_id, best_joker_desc
+    return tips
 
 
 # ---------------------------------------------------------------------------
@@ -556,7 +534,6 @@ def main():
     parser.add_argument("--round", type=int, help="Round number to submit tips for")
     parser.add_argument("--season", type=int, default=2026, help="Season year")
     parser.add_argument("--dry-run", action="store_true", help="Show tips without submitting")
-    parser.add_argument("--joker", action="store_true", help="Set joker on most confident pick")
     parser.add_argument("--game", type=int, help="Submit only for specific game number (1-indexed)")
     args = parser.parse_args()
 
@@ -619,7 +596,7 @@ def main():
     matched = match_predictions_to_events(predictions, events)
     print(f"   Matched {len(matched)} of {len(events)} events")
 
-    tips, joker_event_id, joker_desc = build_tips(matched)
+    tips = build_tips(matched)
     display_tips(tips, matched)
 
     if not tips:
@@ -637,8 +614,6 @@ def main():
 
     if args.dry_run:
         print("🏃 DRY RUN — nothing submitted")
-        if args.joker and joker_event_id:
-            print(f"   Would set joker on: {joker_desc}")
         return
 
     # Submit tips (personal endpoint — auto-propagates to all competitions)
@@ -652,17 +627,6 @@ def main():
         if e.response is not None:
             print(f"     {e.response.text[:500]}")
         sys.exit(1)
-
-    # Submit joker
-    if args.joker and joker_event_id:
-        print(f"🃏 Setting joker on: {joker_desc}...")
-        try:
-            result = submit_joker(args.round, joker_event_id, headers)
-            print(f"   ✓ Joker set successfully")
-        except requests.HTTPError as e:
-            print(f"   ✗ Failed: {e}")
-            if e.response is not None:
-                print(f"     {e.response.text[:500]}")
 
     print("\n✅ Done!")
 

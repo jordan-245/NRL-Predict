@@ -49,7 +49,7 @@ from scripts.footytips_submit import (
     API_BASE, SPORT, LEAGUE, GAME_TYPE, CLIENT_ID,
     TEAM_ID_MAP, TEAM_NAME_BY_ID,
     load_creds, get_auth_header, get_round_events, get_round_data,
-    submit_tips, submit_joker, load_predictions,
+    submit_tips, load_predictions,
 )
 from scripts.telegram_notify import send_message, _esc
 

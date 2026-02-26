@@ -93,7 +93,7 @@ refresh)
 # ── TIPS (Tuesday 5pm AEST) ────────────────────────────────────
 # 1. Retrain model with fresh data + live odds
 # 2. Refresh ESPN token (only if needed)
-# 3. Submit ALL tips + joker
+# 3. Submit ALL tips
 # 4. Verify submission count
 # 5. Telegram with full tipping card
 tips)
@@ -123,17 +123,16 @@ tips)
     fi
 
     echo "$(ts) Submitting tips for Round $ROUND..." >> "$LOG"
-    SUBMIT_OUTPUT=$($PY scripts/footytips_submit.py --round "$ROUND" --joker 2>&1)
+    SUBMIT_OUTPUT=$($PY scripts/footytips_submit.py --round "$ROUND" 2>&1)
     SUBMIT_RC=$?
     echo "$SUBMIT_OUTPUT" >> "$LOG"
 
     if [ $SUBMIT_RC -eq 0 ]; then
-        # Extract tip count and joker info from output
+        # Extract tip count from output
         N_TIPS=$(echo "$SUBMIT_OUTPUT" | grep -oP 'Submitting \K\d+' | head -1)
         N_TIPS=${N_TIPS:-0}
-        JOKER_DESC=$(echo "$SUBMIT_OUTPUT" | grep -oP 'Setting joker on: \K.*' | head -1)
 
-        echo "$(ts) ── Tips submitted: $N_TIPS tips, joker: $JOKER_DESC ──" >> "$LOG"
+        echo "$(ts) ── Tips submitted: $N_TIPS tips ──" >> "$LOG"
 
         # Step 4: Verify tips were actually saved
         VERIFY_COUNT=$($PY -c "
@@ -146,7 +145,7 @@ print(len(data.get('tips', [])))
 
         if [ "$VERIFY_COUNT" -gt 0 ] 2>/dev/null; then
             echo "$(ts) ✓ Verified: $VERIFY_COUNT tips on file" >> "$LOG"
-            notify submit "$ROUND" "$N_TIPS" "$JOKER_DESC"
+            notify submit "$ROUND" "$N_TIPS"
         else
             echo "$(ts) ⚠ Verification: only $VERIFY_COUNT tips on file!" >> "$LOG"
             notify error "tips-verify-failed" "$LOG"

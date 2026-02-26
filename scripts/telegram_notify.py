@@ -233,6 +233,59 @@ def send_lineup_alert(round_num: int, year: int = 2026) -> bool:
     )
 
 
+def send_submit_confirmation(
+    round_num: int, n_tips: int, joker_desc: str = "", year: int = 2026
+) -> bool:
+    """Send confirmation that tips were submitted to ESPN Footytips."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Load predictions for the card
+    pred_dir = PROJECT_ROOT / "outputs" / "predictions"
+    csv_path = pred_dir / f"round_{round_num}_{year}.csv"
+
+    lines = [
+        f"🏉 <b>Tips Submitted — Round {round_num}, {year}</b>",
+        f"<i>{now}</i>",
+        "",
+    ]
+
+    if csv_path.exists():
+        import pandas as pd
+        df = pd.read_csv(csv_path)
+        for _, row in df.iterrows():
+            home = row["home_team"]
+            away = row["away_team"]
+            tip = row["tip"]
+            prob = row["home_win_prob"]
+            odds_prob = row.get("odds_home_prob", 0.5)
+
+            fav_prob = max(odds_prob, 1 - odds_prob)
+            if fav_prob >= 0.65:
+                cat = "🔒"
+            elif fav_prob >= 0.55:
+                cat = "👉"
+            else:
+                cat = "🎲"
+
+            odds_fav = home if odds_prob > 0.5 else away
+            flip = " ↩️" if tip != odds_fav else ""
+            home_short = home.split()[-1]
+            away_short = away.split()[-1]
+            conf_pct = abs(prob - 0.5) * 200
+            lines.append(
+                f"{cat} <b>{_esc(home_short)}</b> v <b>{_esc(away_short)}</b>"
+                f" → <b>{_esc(tip.split()[-1])}</b>"
+                f" ({conf_pct:.0f}%){flip}"
+            )
+
+    lines.append("")
+    lines.append(f"✅ <b>{n_tips} tips submitted</b> to ESPN Footytips")
+    if joker_desc:
+        lines.append(f"🃏 Joker: {_esc(joker_desc)}")
+
+    return send_message("\n".join(lines))
+
+
 def send_error(step: str, detail: str = "", logfile: str | None = None) -> bool:
     """Send an error alert for a failed NRL cron step."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -284,6 +337,11 @@ def main():
     if cmd == "tips":
         round_num = int(sys.argv[2]) if len(sys.argv) > 2 else None
         ok = send_tipping_card(round_num)
+    elif cmd == "submit":
+        round_num = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+        n_tips = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+        joker = sys.argv[4] if len(sys.argv) > 4 else ""
+        ok = send_submit_confirmation(round_num, n_tips, joker)
     elif cmd == "refresh":
         round_num = int(sys.argv[2]) if len(sys.argv) > 2 else None
         ok = send_refresh_summary(round_num)

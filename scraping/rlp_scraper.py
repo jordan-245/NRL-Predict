@@ -4,7 +4,7 @@ Core RLP HTML scraper.
 Orchestrates the downloading of round-summary, round-ladder, season-player,
 and match-stats pages from Rugby League Project.  Returns **raw HTML strings**;
 all parsing is delegated to the dedicated parser modules
-(:mod:`rlp_match_parser`, :mod:`rlp_ladder_parser`, :mod:`rlp_player_parser`).
+(:mod:`rlp_match_parser`, :mod:`rlp_ladder_parser`).
 
 Usage
 -----

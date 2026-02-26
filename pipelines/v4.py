@@ -118,20 +118,19 @@ BEST_RF_PARAMS = {
 
 SAMPLE_WEIGHT_DECAY = 0.907
 
-# V4 OptBlend weights (best: Cal-OptBlend All9+Odds, LL=0.5960)
-# These weights are for the raw (uncalibrated) All7+Odds blend
-# which is simpler to deploy. Cal-OptBlend requires isotonic
-# calibration infrastructure.
+# V4 OptBlend weights.
+#
+# Simplified from the original 7-model blend which had fragile negative
+# weights (LightGBM=-0.222, XGB_top50=-0.809).  Negative weights on
+# correlated GBM variants overfit the walk-forward validation.
+#
+# CatBoost + Odds (Raw-Blend) is the most robust option from backtest:
+#   68.1% accuracy, 0.5989 log loss — beats the old 7-model 67.6%.
+# Training only CatBoost also halves the retrain time.
 V4_BLEND_WEIGHTS = {
-    "XGBoost":   0.586,
-    "LightGBM": -0.222,
-    "CatBoost":  0.357,
-    "LogReg":    0.013,
-    "XGB_top50": -0.809,
-    "LGB_top50":  0.188,
-    "CAT_top50":  0.108,
+    "CAT_top50":  0.495,
 }
-V4_BLEND_ODDS_WEIGHT = 0.779  # 1 - sum(model weights)
+V4_BLEND_ODDS_WEIGHT = 0.505  # 1 - sum(model weights)
 
 
 def safe_log_loss(y_true, y_prob, eps=1e-7):
@@ -430,71 +429,181 @@ def compute_kickoff_features(matches):
 
 
 def compute_lineup_stability_features(matches):
-    """Compute lineup stability: how many players are retained from previous game."""
+    """Compute lineup stability from player_appearances.parquet.
+
+    Uses the actual player appearance data rather than trying to parse list
+    columns from matches (which were dropped during Parquet serialisation).
+    """
     print("\n" + "=" * 80)
     print("  V4: COMPUTING LINEUP STABILITY FEATURES")
     print("=" * 80)
 
     df = matches.copy()
 
-    # Check if lineup data exists
-    has_lineup = "home_lineup" in df.columns and df["home_lineup"].notna().any()
-    if not has_lineup:
-        print("  No lineup data available, skipping")
+    # Try loading player appearances for proper stability computation
+    app_path = PROJECT_ROOT / "data" / "processed" / "player_appearances.parquet"
+    if app_path.exists():
+        appearances = pd.read_parquet(app_path)
+        starters = appearances[appearances["is_starter"]].copy()
+
+        # Build per-team per-match starter sets
+        match_starters = (
+            starters.groupby(["match_id", "team"])["player_name"]
+            .apply(set).to_dict()
+        )
+
+        # Build team previous lineup tracker
+        team_prev = {}
+        stability_vals = {"home": [], "away": []}
+
+        for _, row in df.iterrows():
+            yr = row.get("year", 0)
+            rnd = row.get("round", "")
+
+            for side, team_col in [("home", "home_team"), ("away", "away_team")]:
+                team = row.get(team_col, "")
+                # Build match_id matching the format from build_player_data
+                opp_col = "away_team" if side == "home" else "home_team"
+                opp = row.get(opp_col, "")
+                mid = f"{yr}_r{rnd}_{row.get('home_team', '')}_v_{row.get('away_team', '')}"
+
+                current = match_starters.get((mid, team))
+                if current is None:
+                    stability_vals[side].append(np.nan)
+                    continue
+
+                prev = team_prev.get(team)
+                if prev and len(current) > 0 and len(prev) > 0:
+                    retained = len(current & prev)
+                    stability = retained / max(len(current), 1)
+                    stability_vals[side].append(stability)
+                else:
+                    stability_vals[side].append(np.nan)
+
+                if len(current) > 0:
+                    team_prev[team] = current
+
+        df["home_lineup_stability"] = stability_vals["home"]
+        df["away_lineup_stability"] = stability_vals["away"]
+        df["lineup_stability_diff"] = (
+            pd.to_numeric(pd.Series(stability_vals["home"]), errors="coerce") -
+            pd.to_numeric(pd.Series(stability_vals["away"]), errors="coerce")
+        ).values
+
+        n_valid = df["home_lineup_stability"].notna().sum()
+        print(f"  Added lineup stability features from player_appearances ({n_valid}/{len(df)} valid)")
+    else:
+        # Fallback: no lineup data available
+        print("  No player_appearances.parquet found — lineup stability will be NaN")
+        for col in ["home_lineup_stability", "away_lineup_stability", "lineup_stability_diff"]:
+            df[col] = np.nan
+
+    return df
+
+
+def compute_player_impact_features(matches):
+    """Compute player impact features from player_impact.parquet.
+
+    Adds per-match features:
+    - home/away_spine_impact_sum: total impact of starting spine players
+    - spine_impact_diff: difference between home and away spine impact
+    - home/away_top_absent_impact: impact of highest-impact absent players
+    """
+    print("\n" + "=" * 80)
+    print("  V4: COMPUTING PLAYER IMPACT FEATURES")
+    print("=" * 80)
+
+    df = matches.copy()
+
+    impact_path = PROJECT_ROOT / "data" / "processed" / "player_impact.parquet"
+    app_path = PROJECT_ROOT / "data" / "processed" / "player_appearances.parquet"
+
+    if not impact_path.exists() or not app_path.exists():
+        print("  No player impact data available, skipping")
+        for col in ["home_spine_impact", "away_spine_impact", "spine_impact_diff",
+                     "home_total_impact", "away_total_impact", "total_impact_diff"]:
+            df[col] = np.nan
         return df
 
-    # Build team lineup history
-    team_prev_lineup = {}
+    impact = pd.read_parquet(impact_path)
+    appearances = pd.read_parquet(app_path)
 
-    stability_vals = {"home": [], "away": []}
+    # Build lookup: (team, player_name) → weighted_impact
+    impact_lookup = {}
+    spine_lookup = {}
+    for _, row in impact.iterrows():
+        key = (row["team"], row["player_name"])
+        impact_lookup[key] = row["weighted_impact"]
+        if row["is_spine"]:
+            spine_lookup[key] = row["weighted_impact"]
+
+    # Build per-match starter sets
+    starters = appearances[appearances["is_starter"]].copy()
+    spine_starters = starters[starters["is_spine"]].copy()
+
+    match_starters_set = (
+        starters.groupby(["match_id", "team"])["player_name"]
+        .apply(set).to_dict()
+    )
+    match_spine_set = (
+        spine_starters.groupby(["match_id", "team"])["player_name"]
+        .apply(set).to_dict()
+    )
+
+    # Compute features per match
+    home_spine = []
+    away_spine = []
+    home_total = []
+    away_total = []
 
     for _, row in df.iterrows():
-        for side, team_col, lineup_col in [
-            ("home", "home_team", "home_lineup"),
-            ("away", "away_team", "away_lineup"),
+        yr = row.get("year", 0)
+        rnd = row.get("round", "")
+        ht = row.get("home_team", "")
+        at = row.get("away_team", "")
+        mid = f"{yr}_r{rnd}_{ht}_v_{at}"
+
+        for side, team, s_list, t_list in [
+            ("home", ht, home_spine, home_total),
+            ("away", at, away_spine, away_total),
         ]:
-            team = row.get(team_col, "")
-            lineup_raw = row.get(lineup_col)
+            # Get spine starters for this match
+            spine_players = match_spine_set.get((mid, team), set())
+            all_starters = match_starters_set.get((mid, team), set())
 
-            if pd.isna(lineup_raw) or not lineup_raw:
-                stability_vals[side].append(np.nan)
+            if not all_starters:
+                s_list.append(np.nan)
+                t_list.append(np.nan)
                 continue
 
-            # Parse lineup (could be list or string representation)
-            try:
-                if isinstance(lineup_raw, list):
-                    current = set(lineup_raw)
-                elif isinstance(lineup_raw, str) and lineup_raw.startswith("["):
-                    import ast
-                    current = set(ast.literal_eval(lineup_raw))
-                else:
-                    current = set(str(lineup_raw).split(","))
-                current = {p.strip() for p in current if p.strip()}
-            except Exception:
-                stability_vals[side].append(np.nan)
-                continue
+            # Sum impacts for spine players
+            spine_sum = sum(
+                impact_lookup.get((team, p), 0.0) for p in spine_players
+            )
+            s_list.append(spine_sum)
 
-            prev = team_prev_lineup.get(team)
-            if prev and len(current) > 0 and len(prev) > 0:
-                retained = len(current & prev)
-                stability = retained / max(len(current), 1)
-                stability_vals[side].append(stability)
-            else:
-                stability_vals[side].append(np.nan)
+            # Sum impacts for all starters
+            total_sum = sum(
+                impact_lookup.get((team, p), 0.0) for p in all_starters
+            )
+            t_list.append(total_sum)
 
-            # Update for next time
-            if len(current) > 0:
-                team_prev_lineup[team] = current
-
-    df["home_lineup_stability"] = stability_vals["home"]
-    df["away_lineup_stability"] = stability_vals["away"]
-    df["lineup_stability_diff"] = (
-        pd.to_numeric(pd.Series(stability_vals["home"]), errors="coerce") -
-        pd.to_numeric(pd.Series(stability_vals["away"]), errors="coerce")
+    df["home_spine_impact"] = home_spine
+    df["away_spine_impact"] = away_spine
+    df["spine_impact_diff"] = (
+        pd.to_numeric(pd.Series(home_spine), errors="coerce") -
+        pd.to_numeric(pd.Series(away_spine), errors="coerce")
     ).values
 
-    n_valid = df["home_lineup_stability"].notna().sum()
-    print(f"  Added lineup stability features ({n_valid}/{len(df)} valid)")
+    df["home_total_impact"] = home_total
+    df["away_total_impact"] = away_total
+    df["total_impact_diff"] = (
+        pd.to_numeric(pd.Series(home_total), errors="coerce") -
+        pd.to_numeric(pd.Series(away_total), errors="coerce")
+    ).values
+
+    n_valid = df["home_spine_impact"].notna().sum()
+    print(f"  Added player impact features ({n_valid}/{len(df)} valid)")
     return df
 
 
@@ -710,6 +819,15 @@ def build_v4_feature_matrix(df):
     # V4 Lineup Stability
     feature_cols += ["home_lineup_stability", "away_lineup_stability", "lineup_stability_diff"]
 
+    # V4 Player Impact — REMOVED from training features.
+    # These scores are computed from all-time data, creating look-ahead
+    # bias when used in historical training rows.  Player impact is still
+    # applied via --check-lineups post-prediction adjustment.
+    # feature_cols += [
+    #     "home_spine_impact", "away_spine_impact", "spine_impact_diff",
+    #     "home_total_impact", "away_total_impact", "total_impact_diff",
+    # ]
+
     # V4 Engineered Interactions
     feature_cols += [
         "is_early_season", "is_mid_season", "is_late_season",
@@ -764,8 +882,60 @@ def build_v4_feature_matrix(df):
 # WALK-FORWARD BACKTESTING (V4)
 # =========================================================================
 
+def _sanitize_round1_features(X):
+    """Clamp out-of-distribution features for season openers."""
+    X = X.copy()
+    MAX_REST = 14
+    for col in ["home_days_rest", "away_days_rest"]:
+        if col in X.columns:
+            X[col] = X[col].clip(upper=MAX_REST)
+    if "rest_diff" in X.columns and "home_days_rest" in X.columns and "away_days_rest" in X.columns:
+        X["rest_diff"] = X["home_days_rest"] - X["away_days_rest"]
+    if "round_number" in X.columns:
+        is_r1 = X["round_number"] == 1
+        for col in ["home_bye_last_round", "away_bye_last_round"]:
+            if col in X.columns:
+                X.loc[is_r1, col] = 0
+        for col in ["home_lineup_stability", "away_lineup_stability",
+                     "lineup_stability_diff"]:
+            if col in X.columns:
+                X.loc[is_r1, col] = np.nan
+    return X
+
+
+def _fill_odds_coherent(X):
+    """Fill NaN odds features from actual closing odds (not training medians)."""
+    X = X.copy()
+    hp = X.get("odds_home_prob")
+    ap = X.get("odds_away_prob")
+    if hp is None or ap is None:
+        return X
+    for col, src in [("odds_home_open_prob", hp), ("odds_away_open_prob", ap)]:
+        if col in X.columns:
+            X[col] = X[col].fillna(src)
+    if "spread_home_open" in X.columns:
+        X["spread_home_open"] = X["spread_home_open"].fillna(-((hp - 0.5) * 26))
+    if "spread_home_close" in X.columns:
+        X["spread_home_close"] = X["spread_home_close"].fillna(-((hp - 0.5) * 26))
+    for col in ["odds_movement", "odds_movement_abs",
+                "spread_movement", "spread_movement_abs",
+                "total_movement", "total_movement_abs"]:
+        if col in X.columns:
+            X[col] = X[col].fillna(0)
+    for col in ["odds_home_range", "odds_away_range",
+                "odds_home_range_close", "odds_away_range_close"]:
+        if col in X.columns:
+            X[col] = X[col].fillna(0)
+    if "bookmakers_surveyed" in X.columns:
+        X["bookmakers_surveyed"] = X["bookmakers_surveyed"].fillna(1)
+    for col in ["implied_draw_prob", "draw_competitiveness"]:
+        if col in X.columns:
+            X[col] = X[col].fillna(0.05)
+    return X
+
+
 def fill_missing(X_train, X_test):
-    """Fill NaN using train medians; boolean flags with 0."""
+    """Fill NaN with sanitization, coherent odds, then train medians."""
     bool_cols = {"home_is_back_to_back", "away_is_back_to_back",
                  "home_bye_last_round", "away_bye_last_round",
                  "is_finals", "odds_home_favourite", "is_home", "is_neutral_venue",
@@ -773,8 +943,10 @@ def fill_missing(X_train, X_test):
                  "attendance_high", "is_night_game", "is_afternoon_game", "is_day_game",
                  "is_early_season", "is_mid_season", "is_late_season"}
     medians = X_train.median()
-    Xtr = X_train.copy()
-    Xte = X_test.copy()
+    Xtr = _sanitize_round1_features(X_train.copy())
+    Xtr = _fill_odds_coherent(Xtr)
+    Xte = _sanitize_round1_features(X_test.copy())
+    Xte = _fill_odds_coherent(Xte)
     for col in X_train.columns:
         fill_val = 0 if col in bool_cols else medians.get(col, 0)
         Xtr[col] = Xtr[col].fillna(fill_val)
@@ -1368,6 +1540,7 @@ def main():
     matches = compute_attendance_features(matches)
     matches = compute_kickoff_features(matches)
     matches = compute_lineup_stability_features(matches)
+    matches = compute_player_impact_features(matches)
     matches = compute_v4_engineered_features(matches)
 
     # === STEP 7: Build V4 feature matrix ===

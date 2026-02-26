@@ -166,6 +166,11 @@ FEATURE_COLS = [
     "is_night_game", "is_afternoon_game", "is_day_game",
     # V4 Lineup Stability (3)
     "home_lineup_stability", "away_lineup_stability", "lineup_stability_diff",
+    # V4 Player Impact (6)
+    # Player impact features removed from training — look-ahead bias.
+    # Impact is applied via --check-lineups post-prediction adjustment.
+    # "home_spine_impact", "away_spine_impact", "spine_impact_diff",
+    # "home_total_impact", "away_total_impact", "total_impact_diff",
     # V4 Engineered Interactions (14)
     "is_early_season", "is_mid_season", "is_late_season",
     "elo_diff_x_late", "elo_diff_x_early", "form_x_late",
@@ -188,7 +193,12 @@ def load_historical_data():
     print("  Loading historical data...")
     matches_raw = pd.read_parquet(PROCESSED_DIR / "matches.parquet")
     ladders = pd.read_parquet(PROCESSED_DIR / "ladders.parquet")
-    odds = pd.read_parquet(PROCESSED_DIR / "odds.parquet")
+    odds_path = PROCESSED_DIR / "odds.parquet"
+    if odds_path.exists():
+        odds = pd.read_parquet(odds_path)
+    else:
+        print("  WARNING: odds.parquet not found — running without historical odds")
+        odds = pd.DataFrame(columns=["date", "home_team", "away_team"])
 
     matches = matches_raw.copy()
     matches["date"] = pd.to_datetime(matches["parsed_date"], errors="coerce")
@@ -309,6 +319,9 @@ def load_upcoming_matches(csv_path: str | Path, round_num: int, year: int) -> pd
 
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Tag as user-supplied upcoming match (vs scraped future fixtures)
+    df["_is_user_upcoming"] = True
 
     # Map user odds columns to expected internal names
     if "odds_home" in df.columns and "odds_away" in df.columns:
@@ -438,11 +451,14 @@ def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFr
 
     X_pred_raw = upcoming_feat[feature_cols].copy()
 
-    # Fill missing using cached training medians
+    # Sanitize Round 1 outliers + fill odds features coherently
+    X_pred = _sanitize_round1_features(X_pred_raw.copy())
+    X_pred = _fill_odds_coherent(X_pred)
+
+    # Then fill remaining NaNs with cached training medians
     bool_cols = {"home_is_back_to_back", "away_is_back_to_back",
                  "home_bye_last_round", "away_bye_last_round",
                  "is_finals", "odds_home_favourite", "is_home", "is_neutral_venue"}
-    X_pred = X_pred_raw.copy()
     for col in feature_cols:
         fill_val = 0 if col in bool_cols else medians.get(col, 0)
         X_pred[col] = X_pred[col].fillna(fill_val)
@@ -521,6 +537,15 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     # Link odds for historical matches
     linked = v3.link_odds(matches, odds)
 
+    # Remove unplayed matches from historical data (e.g. future 2026 fixtures
+    # scraped from RLP that have NaN scores — they add no training value and
+    # confuse feature computation / upcoming match identification)
+    before = len(linked)
+    linked = linked.dropna(subset=["home_score"]).reset_index(drop=True)
+    dropped = before - len(linked)
+    if dropped > 0:
+        print(f"  Dropped {dropped} unplayed historical matches (NaN scores)")
+
     # Append upcoming matches (already have h2h_home/h2h_away from user CSV or API)
     all_matches = pd.concat([linked, upcoming], ignore_index=True)
 
@@ -530,8 +555,12 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
 
     all_matches = all_matches.sort_values("date").reset_index(drop=True)
 
-    # Track which rows are upcoming (NaN scores)
-    is_upcoming = all_matches["home_score"].isna()
+    # Tag user-supplied upcoming matches (not just any NaN-score match)
+    # The upcoming df has a special marker; 2026 fixtures from RLP also have
+    # NaN scores but should NOT be predicted.
+    if "_is_user_upcoming" not in all_matches.columns:
+        all_matches["_is_user_upcoming"] = False
+    is_upcoming = all_matches["_is_user_upcoming"].fillna(False).astype(bool)
 
     print(f"\n  Building features for {len(all_matches)} matches "
           f"({is_upcoming.sum()} upcoming)...")
@@ -553,6 +582,7 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     all_matches = v4.compute_attendance_features(all_matches)
     all_matches = v4.compute_kickoff_features(all_matches)
     all_matches = v4.compute_lineup_stability_features(all_matches)
+    all_matches = v4.compute_player_impact_features(all_matches)
     all_matches = v4.compute_v4_engineered_features(all_matches)
 
     # Create target
@@ -586,16 +616,115 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
 # Model Training & Prediction
 # =====================================================================
 
+def _sanitize_round1_features(X: pd.DataFrame) -> pd.DataFrame:
+    """Clamp out-of-distribution features that appear in season openers.
+
+    Round 1 games have ~175 days rest (off-season), all teams flagged as
+    'bye last round', and extreme carry-over form stats.  These values are
+    far outside the training distribution, causing tree models to
+    extrapolate unpredictably.
+    """
+    X = X.copy()
+
+    # Cap days rest at 14 (treat off-season as a regular bye, not 175 days)
+    MAX_REST = 14
+    for col in ["home_days_rest", "away_days_rest"]:
+        if col in X.columns:
+            X[col] = X[col].clip(upper=MAX_REST)
+    if "rest_diff" in X.columns and "home_days_rest" in X.columns and "away_days_rest" in X.columns:
+        X["rest_diff"] = X["home_days_rest"] - X["away_days_rest"]
+
+    # Off-season is not a bye — clear these flags for Round 1
+    if "round_number" in X.columns:
+        is_r1 = X["round_number"] == 1
+        for col in ["home_bye_last_round", "away_bye_last_round"]:
+            if col in X.columns:
+                X.loc[is_r1, col] = 0
+
+        # Lineup stability is meaningless at Round 1 — off-season roster
+        # changes ≠ injury disruption.  Set to NaN → median fill (neutral).
+        for col in ["home_lineup_stability", "away_lineup_stability",
+                     "lineup_stability_diff"]:
+            if col in X.columns:
+                X.loc[is_r1, col] = np.nan
+
+    return X
+
+
+def _fill_odds_coherent(X: pd.DataFrame) -> pd.DataFrame:
+    """Fill NaN odds features coherently from actual closing odds.
+
+    When the Odds API only returns h2h closing prices, derived features
+    (opening odds, spreads, movement) are NaN.  Filling those with
+    training medians creates phantom signals (e.g. median says 'home
+    favourite' when the real odds say 'away favourite').  Instead, we
+    derive them from the available closing odds so all odds features
+    tell a consistent story.
+    """
+    X = X.copy()
+    hp = X.get("odds_home_prob")
+    ap = X.get("odds_away_prob")
+    if hp is None or ap is None:
+        return X
+
+    # Opening odds → mirror closing (assume no movement)
+    for col, src in [("odds_home_open_prob", hp),
+                     ("odds_away_open_prob", ap)]:
+        if col in X.columns:
+            X[col] = X[col].fillna(src)
+
+    # Spread → derive from odds prob  (approx: margin ≈ (prob-0.5) * 26)
+    if "spread_home_open" in X.columns:
+        derived_spread = -((hp - 0.5) * 26)
+        X["spread_home_open"] = X["spread_home_open"].fillna(derived_spread)
+    if "spread_home_close" in X.columns:
+        derived_spread = -((hp - 0.5) * 26)
+        X["spread_home_close"] = X["spread_home_close"].fillna(derived_spread)
+
+    # Total line → use training median (neutral, no directional bias)
+    # (left for generic median fill below)
+
+    # Movement features → 0 (no movement when open == close)
+    for col in ["odds_movement", "odds_movement_abs",
+                "spread_movement", "spread_movement_abs",
+                "total_movement", "total_movement_abs"]:
+        if col in X.columns:
+            X[col] = X[col].fillna(0)
+
+    # Range/bookmaker features → neutral values
+    for col in ["odds_home_range", "odds_away_range",
+                "odds_home_range_close", "odds_away_range_close"]:
+        if col in X.columns:
+            X[col] = X[col].fillna(0)
+    if "bookmakers_surveyed" in X.columns:
+        X["bookmakers_surveyed"] = X["bookmakers_surveyed"].fillna(1)
+
+    # Draw/competitiveness → neutral
+    for col in ["implied_draw_prob", "draw_competitiveness"]:
+        if col in X.columns:
+            X[col] = X[col].fillna(0.05)
+
+    return X
+
+
 def fill_missing(X_train: pd.DataFrame, X_test: pd.DataFrame):
-    """Fill NaN using training medians; boolean flags default to 0."""
+    """Fill NaN using training medians; odds features filled coherently."""
     bool_cols = {"home_is_back_to_back", "away_is_back_to_back",
                  "home_bye_last_round", "away_bye_last_round",
                  "is_finals", "odds_home_favourite", "is_home", "is_neutral_venue"}
     medians = X_train.median()
-    Xtr = X_train.copy()
-    Xte = X_test.copy()
+
+    # Sanitize Round 1 outliers + fill odds features coherently
+    Xtr = _sanitize_round1_features(X_train.copy())
+    Xtr = _fill_odds_coherent(Xtr)
+    Xte = _sanitize_round1_features(X_test.copy())
+    Xte = _fill_odds_coherent(Xte)
+
     for col in X_train.columns:
-        fill_val = 0 if col in bool_cols else medians.get(col, 0)
+        med = medians.get(col, 0)
+        if pd.isna(med):
+            med = 0
+        fill_val = 0 if col in bool_cols else med
         Xtr[col] = Xtr[col].fillna(fill_val)
         Xte[col] = Xte[col].fillna(fill_val)
     return Xtr, Xte
@@ -608,7 +737,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     Returns (results_df, artifacts_dict).  Artifacts are cached for fast
     re-scoring with updated odds.
     """
-    print("\n  Training OptBlend ensemble...")
+    print("\n  Training CAT_top50 + Odds blend...")
 
     X_train_raw = historical[feature_cols].copy()
     y_train = historical["home_win"].values
@@ -625,7 +754,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     # Fill missing values
     X_train, X_pred = fill_missing(X_train_raw, X_pred_raw)
 
-    # Feature selection for top-50 variants
+    # Feature selection — top-50 by XGBoost importance
     print("    Selecting top-50 features...")
     selector = xgb.XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.02,
                                   verbosity=0, random_state=42)
@@ -638,57 +767,16 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     predictions = {}
     trained_models = {}
 
-    # --- XGBoost (all features) ---
-    print("    Training XGBoost...")
-    m = xgb.XGBClassifier(**BEST_XGB_PARAMS)
-    m.fit(X_train, y_train, sample_weight=sample_weights)
-    predictions["XGBoost"] = np.clip(m.predict_proba(X_pred)[:, 1], 1e-7, 1-1e-7)
-    trained_models["XGBoost"] = m
-
-    # --- XGBoost (top 50) ---
-    print("    Training XGBoost (top-50)...")
-    m = xgb.XGBClassifier(**BEST_XGB_PARAMS)
-    m.fit(X_train_top, y_train, sample_weight=sample_weights)
-    predictions["XGB_top50"] = np.clip(m.predict_proba(X_pred_top)[:, 1], 1e-7, 1-1e-7)
-    trained_models["XGB_top50"] = m
-
-    # --- LightGBM (all features) ---
-    print("    Training LightGBM...")
-    m = lgbm.LGBMClassifier(**BEST_LGB_PARAMS)
-    m.fit(X_train, y_train, sample_weight=sample_weights)
-    predictions["LightGBM"] = np.clip(m.predict_proba(X_pred)[:, 1], 1e-7, 1-1e-7)
-    trained_models["LightGBM"] = m
-
-    # --- LightGBM (top 50) ---
-    print("    Training LightGBM (top-50)...")
-    m = lgbm.LGBMClassifier(**BEST_LGB_PARAMS)
-    m.fit(X_train_top, y_train, sample_weight=sample_weights)
-    predictions["LGB_top50"] = np.clip(m.predict_proba(X_pred_top)[:, 1], 1e-7, 1-1e-7)
-    trained_models["LGB_top50"] = m
-
-    # --- CatBoost (all features) ---
-    print("    Training CatBoost...")
-    m = CatBoostClassifier(**BEST_CAT_PARAMS)
-    m.fit(X_train, y_train, sample_weight=sample_weights)
-    predictions["CatBoost"] = np.clip(m.predict_proba(X_pred)[:, 1], 1e-7, 1-1e-7)
-    trained_models["CatBoost"] = m
-
-    # --- CatBoost (top 50) ---
-    print("    Training CatBoost (top-50)...")
+    # --- CatBoost (top-50 features) — sole model in blend ---
+    print(f"    Training CatBoost on {len(top50)} features...")
     m = CatBoostClassifier(**BEST_CAT_PARAMS)
     m.fit(X_train_top, y_train, sample_weight=sample_weights)
     predictions["CAT_top50"] = np.clip(m.predict_proba(X_pred_top)[:, 1], 1e-7, 1-1e-7)
     trained_models["CAT_top50"] = m
 
-    # --- Logistic Regression ---
-    print("    Training LogReg...")
+    # Scaler (kept for cache compatibility)
     scaler = StandardScaler()
-    X_tr_sc = scaler.fit_transform(X_train)
-    X_pr_sc = scaler.transform(X_pred)
-    m = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
-    m.fit(X_tr_sc, y_train, sample_weight=sample_weights)
-    predictions["LogReg"] = np.clip(m.predict_proba(X_pr_sc)[:, 1], 1e-7, 1-1e-7)
-    trained_models["LogReg"] = m
+    scaler.fit(X_train)
 
     # --- Odds implied probability ---
     if "odds_home_prob" in upcoming.columns:
@@ -733,6 +821,153 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     }
 
     return results, artifacts
+
+
+# =====================================================================
+# Lineup Check & Player Impact Adjustment
+# =====================================================================
+
+def check_lineups_and_adjust(
+    results: pd.DataFrame,
+    round_num: int,
+    year: int,
+) -> pd.DataFrame:
+    """Fetch NRL.com team lists, diff vs expected starters, adjust probabilities.
+
+    For each team, identifies missing expected starters and adjusts the
+    home_win_prob using player impact scores.
+    """
+    from scraping.nrl_teamlists import fetch_round_teamlists, diff_lineups, get_expected_starters
+    from processing.player_impact import get_player_impact, OUTPUT_PATH as IMPACT_PATH
+
+    print("\n  LINEUP CHECK: Fetching NRL.com team lists...")
+
+    # Load player impact data
+    impact_df = None
+    if IMPACT_PATH.exists():
+        impact_df = pd.read_parquet(IMPACT_PATH)
+        print(f"    Loaded {len(impact_df)} player impact scores")
+    else:
+        print("    WARNING: No player impact data — run: python -m processing.player_impact")
+        print("    Lineup check will show changes but cannot adjust probabilities")
+
+    # Load player appearances for expected starters
+    app_path = PROCESSED_DIR / "player_appearances.parquet"
+    appearances_df = None
+    if app_path.exists():
+        appearances_df = pd.read_parquet(app_path)
+
+    # Fetch current team lists from NRL.com
+    teamlists = fetch_round_teamlists(year, round_num, use_cache=False, delay=0.5)
+
+    if not teamlists:
+        print("    No team lists available from NRL.com")
+        return results
+
+    # Build lookup: team → current players
+    current_by_team = {}
+    for tl in teamlists:
+        current_by_team[tl["home_team"]] = tl["home_players"]
+        current_by_team[tl["away_team"]] = tl["away_players"]
+
+    print(f"    Got team lists for {len(teamlists)} matches\n")
+
+    # Process each match
+    results = results.copy()
+    lineup_alerts = []
+
+    for idx, row in results.iterrows():
+        home = row["home_team"]
+        away = row["away_team"]
+
+        home_adj = 0.0
+        away_adj = 0.0
+        match_alerts = []
+
+        for team, side in [(home, "home"), (away, "away")]:
+            current_players = current_by_team.get(team, [])
+            if not current_players:
+                continue
+
+            # Get expected starters
+            expected = get_expected_starters(team, appearances_df, n_recent=5)
+            if not expected:
+                continue
+
+            # Diff
+            changes = diff_lineups(team, current_players, expected)
+
+            for change in changes:
+                expected_name = change["expected"]
+                actual_name = change.get("actual", "???")
+                jersey = change["jersey_number"]
+
+                # Look up impact of the missing player
+                impact = 0.0
+                if impact_df is not None:
+                    impact = get_player_impact(
+                        team, player_name=expected_name, impact_df=impact_df
+                    )
+
+                alert = {
+                    "team": team,
+                    "side": side,
+                    "jersey": jersey,
+                    "expected": expected_name,
+                    "actual": actual_name,
+                    "change_type": change["change_type"],
+                    "impact": impact,
+                }
+                match_alerts.append(alert)
+
+                # Accumulate adjustments
+                if side == "home":
+                    home_adj -= impact  # losing this player hurts home
+                elif side == "away":
+                    away_adj -= impact  # losing this player hurts away
+
+        # Apply adjustments (cap per-team adjustment to ±0.15 to prevent
+        # over-adjustment at season start when many roster changes show up)
+        MAX_TEAM_ADJ = 0.15
+        home_adj = np.clip(home_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+        away_adj = np.clip(away_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+        total_adj = home_adj - away_adj  # net effect on home_win_prob
+        if abs(total_adj) > 0.001:
+            old_prob = row["home_win_prob"]
+            new_prob = np.clip(old_prob + total_adj, 0.05, 0.95)
+            results.at[idx, "home_win_prob"] = new_prob
+            results.at[idx, "away_win_prob"] = 1.0 - new_prob
+            results.at[idx, "tip"] = home if new_prob >= 0.5 else away
+            results.at[idx, "confidence"] = abs(new_prob - 0.5) * 2
+
+        lineup_alerts.extend(match_alerts)
+
+    # Print lineup report
+    if lineup_alerts:
+        print("  " + "=" * 65)
+        print("  LINEUP CHANGES DETECTED")
+        print("  " + "=" * 65)
+
+        for alert in lineup_alerts:
+            impact_str = ""
+            if abs(alert["impact"]) > 0.001:
+                impact_str = f" (impact: {alert['impact']:+.3f})"
+
+            if alert["change_type"] == "REPLACED":
+                print(f"    {alert['team']:30s} #{alert['jersey']:2d}: "
+                      f"{alert['expected']} → {alert['actual']}{impact_str}")
+            else:
+                print(f"    {alert['team']:30s} #{alert['jersey']:2d}: "
+                      f"{alert['expected']} → MISSING{impact_str}")
+
+        # Summarise adjustments
+        adjusted = results[results["home_win_prob"] != results.get("_orig_prob", results["home_win_prob"])]
+        if lineup_alerts:
+            print(f"\n    Total changes: {len(lineup_alerts)}")
+    else:
+        print("    No lineup changes detected vs expected starters")
+
+    return results
 
 
 # =====================================================================
@@ -803,6 +1038,7 @@ def load_upcoming_from_api(round_num: int | None, year: int) -> tuple[pd.DataFra
     """
     from scraping.odds_api import get_upcoming_round
     df, detected_round = get_upcoming_round(round_num=round_num, year=year)
+    df["_is_user_upcoming"] = True
     return df, detected_round
 
 
@@ -821,6 +1057,8 @@ def main():
                         help="Force model retraining (ignore cache)")
     parser.add_argument("--retune-elo", action="store_true",
                         help="Re-run Elo hyperparameter optimization (slower)")
+    parser.add_argument("--check-lineups", action="store_true",
+                        help="Fetch NRL.com team lists and adjust for missing players")
     args = parser.parse_args()
 
     t_start = time.time()
@@ -860,6 +1098,9 @@ def main():
             )
             results = score_with_models(cache["artifacts"], upcoming_feat)
 
+            if args.check_lineups:
+                results = check_lineups_and_adjust(results, round_num, year)
+
             if args.match:
                 results = _filter_match(results, args.match)
 
@@ -887,6 +1128,9 @@ def main():
 
         # Save cache for fast re-scoring
         save_model_cache(cp, artifacts, upcoming_feat, round_num, year)
+
+        if args.check_lineups:
+            results = check_lineups_and_adjust(results, round_num, year)
 
         if args.match:
             results = _filter_match(results, args.match)
@@ -941,6 +1185,9 @@ def main():
         # Step 4: Train and predict
         print("\n  STEP 4: Model training & prediction")
         results, _artifacts = train_and_predict(historical, upcoming_feat, feature_cols)
+
+        if args.check_lineups:
+            results = check_lineups_and_adjust(results, round_num, year)
 
         if args.match:
             results = _filter_match(results, args.match)

@@ -1,0 +1,234 @@
+2026-02-26 23:26:42 ── NRL lineup check starting ──
+
+======================================================================
+  NRL 2026 Prediction Pipeline (auto mode)
+======================================================================
+
+  STEP 1: Fetching from Odds API...
+  Fetching fixtures from Odds API (free)...
+  [Odds API] Quota: 79 used, 421 remaining
+  Found 8 upcoming events
+  Auto-detected round: 1
+  Fetching odds from Odds API (h2h + spreads)...
+  [Odds API] Quota: 81 used, 419 remaining
+  Round 1: 8 matches
+  Odds available for 8/8 matches
+
+  Round 1: 8 matches
+
+  STEP 2: Re-scoring with fresh odds (cached models)
+
+  LINEUP CHECK: Fetching NRL.com team lists...
+    Loaded 300 player impact scores
+    Got team lists for 2 matches
+
+  =================================================================
+  LINEUP CHANGES DETECTED
+  =================================================================
+    Newcastle Knights              # 2: Schiller → Dominic Young
+    Newcastle Knights              # 7: Cogger → Dylan Brown (impact: +0.254)
+    Newcastle Knights              # 8: Frizell → Jacob Saifiti (impact: +0.181)
+    Newcastle Knights              #10: Thompson → Trey Mooney (impact: +0.189)
+    Newcastle Knights              #12: Pearce-Paul → Jermaine McEwen (impact: +0.276)
+    North Queensland Cowboys       # 2: Derby → Braidon Burns (impact: +0.064)
+    North Queensland Cowboys       # 4: Vailea → Tom Chester (impact: +0.278)
+    North Queensland Cowboys       # 6: Dearden → Jake Clifford (impact: +0.163)
+    North Queensland Cowboys       # 7: Clifford → Tom Dearden (impact: +0.199)
+    North Queensland Cowboys       # 8: McLean → Coen Hess (impact: +0.214)
+    North Queensland Cowboys       # 9: Robson → Reed Mahoney (impact: +0.189)
+    North Queensland Cowboys       #11: Bateman → Heilum Luki (impact: -0.023)
+    North Queensland Cowboys       #12: Nanai → Sam McIntyre (impact: +0.109)
+    Canterbury Bulldogs            # 7: Sexton → Lachlan Galvin (impact: -0.129)
+    Canterbury Bulldogs            # 9: Mahoney → Bailey Hayward (impact: -0.227)
+    Canterbury Bulldogs            #10: Curran → Samuel Hughes (impact: -0.097)
+    St George Illawarra Dragons    # 2: Sloan → Christian Tuipulotu (impact: +0.036)
+    St George Illawarra Dragons    # 5: Allan → Setu Tu
+    St George Illawarra Dragons    # 7: Ilias → Daniel Atkinson
+    St George Illawarra Dragons    # 8: Couchman → Emre Guler
+    St George Illawarra Dragons    #10: Klemmer → Toby Couchman (impact: -0.046)
+    St George Illawarra Dragons    #11: Egan → Luciano Leilua
+    St George Illawarra Dragons    #13: De Belin → Hamish Stewart (impact: -0.051)
+
+    Total changes: 23
+
+===========================================================================
+  NRL TIPPING CARD - ROUND 1, 2026
+  Generated: Thursday 26 February 2026, 11:26 PM
+===========================================================================
+
+  LOCKS (tip favourite, don't overthink)
+  -----------------------------------------------------------------
+  TIP: Canterbury Bulldogs       ***..  (Canterbury Bulldogs $1.37 v St George Illawarra Dragons $3.06)
+       Strong favourite at 69% - don't overthink
+  TIP: Melbourne Storm           ***..  (Melbourne Storm $1.46 v Parramatta Eels $2.72)
+       Strong favourite at 65% - don't overthink
+  TIP: Cronulla Sharks           ***..  (Cronulla Sharks $1.35 v Gold Coast Titans $3.20)
+       Strong favourite at 70% - don't overthink
+
+  LEANS (default favourite, check model)
+  -----------------------------------------------------------------
+  TIP: Newcastle Knights         **...  (Newcastle Knights $2.33 v North Queensland Cowboys $1.60) *** FLIPPED ***
+       Model disagrees: gives Newcastle Knights 60% (odds say North Queensland Cowboys at 59%)
+  TIP: Sydney Roosters           ***..  (New Zealand Warriors $2.51 v Sydney Roosters $1.52)
+       Moderate favourite at 62% | Model agrees
+  TIP: Penrith Panthers          **...  (Brisbane Broncos $1.70 v Penrith Panthers $2.14) *** FLIPPED ***
+       Model disagrees: gives Penrith Panthers 68% (odds say Brisbane Broncos at 56%)
+
+  TOSS-UPS (use model, these are coin flips)
+  -----------------------------------------------------------------
+  TIP: Canberra Raiders          **...  (Manly Sea Eagles $1.90 v Canberra Raiders $1.90)
+       Coin flip (50%) - model picks Canberra Raiders at 68%
+  TIP: South Sydney Rabbitohs    **...  (Dolphins $1.80 v South Sydney Rabbitohs $2.02)
+       Coin flip (53%) - model picks South Sydney Rabbitohs at 69%
+
+  =================================================================
+  FINAL TIPS
+  =================================================================
+  #   Match                                                Tip                     Mar
+  -----------------------------------------------------------------
+  1   Newcastle Knights v North Queensland Cowboys         Newcastle Knights         4 **
+  2   Canterbury Bulldogs v St George Illawarra Dragons    Canterbury Bulldogs       8
+  3   Melbourne Storm v Parramatta Eels                    Melbourne Storm           6
+  4   New Zealand Warriors v Sydney Roosters               Sydney Roosters           5
+  5   Brisbane Broncos v Penrith Panthers                  Penrith Panthers          2 **
+  6   Cronulla Sharks v Gold Coast Titans                  Cronulla Sharks           9
+  7   Manly Sea Eagles v Canberra Raiders                  Canberra Raiders          1 *
+  8   Dolphins v South Sydney Rabbitohs                    South Sydney Rabbitohs    2 *
+
+  * = model pick   ** = model flipped the favourite
+
+  Avg margin this round: 5 pts
+  Use individual margins above for tiebreaker (not gut feel)
+
+  GAME DAY CHECKLIST:
+  [ ] Check final team lists 1 hour before each game
+  [ ] If a halfback/fullback/hooker is a late OUT from your tipped team:
+      -> Newcastle Knights v North Queensland Cowboys: flip if key spine player out from Newcastle Knights
+      -> New Zealand Warriors v Sydney Roosters: flip if key spine player out from Sydney Roosters
+      -> Brisbane Broncos v Penrith Panthers: flip if key spine player out from Penrith Panthers
+      -> Manly Sea Eagles v Canberra Raiders: flip if key spine player out from Canberra Raiders
+      -> Dolphins v South Sydney Rabbitohs: flip if key spine player out from South Sydney Rabbitohs
+  [ ] Don't flip any LOCKs unless something extraordinary
+===========================================================================
+
+  Predictions saved to /root/NRL-Predict/outputs/predictions/round_1_2026.csv
+
+  Completed in 8s (fast mode)
+2026-02-26 23:26:52 ── NRL lineup check complete ──
+2026-02-27 00:17:59 ── NRL lineup check starting ──
+
+======================================================================
+  NRL 2026 Prediction Pipeline (auto mode)
+======================================================================
+
+  STEP 1: Fetching from Odds API...
+  Fetching fixtures from Odds API (free)...
+  [Odds API] Quota: 109 used, 391 remaining
+  Found 8 upcoming events
+  Auto-detected round: 1
+  Fetching odds from Odds API (h2h + spreads)...
+  [Odds API] Quota: 111 used, 389 remaining
+  Round 1: 8 matches
+  Odds available for 8/8 matches
+
+  Round 1: 8 matches
+
+  STEP 2: Re-scoring with fresh odds (cached models)
+
+  LINEUP CHECK: Fetching NRL.com team lists...
+    Loaded 360 player impact scores
+    Got team lists for 2 matches
+
+  =================================================================
+  LINEUP CHANGES DETECTED
+  =================================================================
+    Newcastle Knights              # 2: Schiller → Dominic Young (impact: +0.013)
+    Newcastle Knights              # 7: Cogger → Dylan Brown (impact: +0.083)
+    Newcastle Knights              # 8: Frizell → Jacob Saifiti (impact: +0.005)
+    Newcastle Knights              #10: Thompson → Trey Mooney (impact: -0.040)
+    Newcastle Knights              #12: Pearce-Paul → Jermaine McEwen (impact: +0.012)
+    North Queensland Cowboys       # 2: Derby → Braidon Burns (impact: -0.038)
+    North Queensland Cowboys       # 4: Vailea → Tom Chester (impact: +0.230)
+    North Queensland Cowboys       # 6: Dearden → Jake Clifford (impact: -0.031)
+    North Queensland Cowboys       # 7: Clifford → Tom Dearden (impact: +0.263)
+    North Queensland Cowboys       # 8: McLean → Coen Hess (impact: +0.052)
+    North Queensland Cowboys       # 9: Robson → Reed Mahoney (impact: +0.035)
+    North Queensland Cowboys       #11: Bateman → Heilum Luki (impact: -0.122)
+    North Queensland Cowboys       #12: Nanai → Sam McIntyre (impact: +0.004)
+    Canterbury Bulldogs            # 7: Sexton → Lachlan Galvin (impact: +0.187)
+    Canterbury Bulldogs            # 9: Mahoney → Bailey Hayward (impact: +0.095)
+    Canterbury Bulldogs            #10: Curran → Samuel Hughes (impact: +0.093)
+    St George Illawarra Dragons    # 2: Sloan → Christian Tuipulotu (impact: +0.114)
+    St George Illawarra Dragons    # 5: Allan → Setu Tu (impact: -0.046)
+    St George Illawarra Dragons    # 7: Ilias → Daniel Atkinson
+    St George Illawarra Dragons    # 8: Couchman → Emre Guler (impact: -0.159)
+    St George Illawarra Dragons    #10: Klemmer → Toby Couchman (impact: -0.060)
+    St George Illawarra Dragons    #11: Egan → Luciano Leilua
+    St George Illawarra Dragons    #13: De Belin → Hamish Stewart (impact: -0.107)
+
+    Total changes: 23
+
+===========================================================================
+  NRL TIPPING CARD - ROUND 1, 2026
+  Generated: Friday 27 February 2026, 12:18 AM
+===========================================================================
+
+  LOCKS (tip favourite, don't overthink)
+  -----------------------------------------------------------------
+  TIP: Canterbury Bulldogs       ***..  (Canterbury Bulldogs $1.37 v St George Illawarra Dragons $3.06)
+       Strong favourite at 69% - don't overthink
+  TIP: Melbourne Storm           ***..  (Melbourne Storm $1.46 v Parramatta Eels $2.72)
+       Strong favourite at 65% - don't overthink
+  TIP: Cronulla Sharks           ***..  (Cronulla Sharks $1.35 v Gold Coast Titans $3.20)
+       Strong favourite at 70% - don't overthink
+
+  LEANS (default favourite, check model)
+  -----------------------------------------------------------------
+  TIP: North Queensland Cowboys  ***..  (Newcastle Knights $2.33 v North Queensland Cowboys $1.60)
+       Moderate favourite at 59% | Model agrees
+  TIP: Sydney Roosters           ***..  (New Zealand Warriors $2.51 v Sydney Roosters $1.52)
+       Moderate favourite at 62% | Model agrees
+  TIP: Brisbane Broncos          ***..  (Brisbane Broncos $1.70 v Penrith Panthers $2.14)
+       Moderate favourite at 56% | Model agrees
+
+  TOSS-UPS (use model, these are coin flips)
+  -----------------------------------------------------------------
+  TIP: Manly Sea Eagles          **...  (Manly Sea Eagles $1.90 v Canberra Raiders $1.90)
+       Coin flip (50%) - model picks Manly Sea Eagles at 51%
+  TIP: Dolphins                  **...  (Dolphins $1.79 v South Sydney Rabbitohs $2.03)
+       Coin flip (53%) - model picks Dolphins at 53%
+
+  =================================================================
+  FINAL TIPS
+  =================================================================
+  #   Match                                                Tip                     Mar
+  -----------------------------------------------------------------
+  1   Newcastle Knights v North Queensland Cowboys         North Queensland Cowboys    4
+  2   Canterbury Bulldogs v St George Illawarra Dragons    Canterbury Bulldogs       8
+  3   Melbourne Storm v Parramatta Eels                    Melbourne Storm           6
+  4   New Zealand Warriors v Sydney Roosters               Sydney Roosters           5
+  5   Brisbane Broncos v Penrith Panthers                  Brisbane Broncos          2
+  6   Cronulla Sharks v Gold Coast Titans                  Cronulla Sharks           9
+  7   Manly Sea Eagles v Canberra Raiders                  Manly Sea Eagles          1 *
+  8   Dolphins v South Sydney Rabbitohs                    Dolphins                  2 *
+
+  * = model pick   ** = model flipped the favourite
+
+  Avg margin this round: 5 pts
+  Use individual margins above for tiebreaker (not gut feel)
+
+  GAME DAY CHECKLIST:
+  [ ] Check final team lists 1 hour before each game
+  [ ] If a halfback/fullback/hooker is a late OUT from your tipped team:
+      -> Newcastle Knights v North Queensland Cowboys: flip if key spine player out from North Queensland Cowboys
+      -> New Zealand Warriors v Sydney Roosters: flip if key spine player out from Sydney Roosters
+      -> Brisbane Broncos v Penrith Panthers: flip if key spine player out from Brisbane Broncos
+      -> Manly Sea Eagles v Canberra Raiders: flip if key spine player out from Manly Sea Eagles
+      -> Dolphins v South Sydney Rabbitohs: flip if key spine player out from Dolphins
+  [ ] Don't flip any LOCKs unless something extraordinary
+===========================================================================
+
+  Predictions saved to /root/NRL-Predict/outputs/predictions/round_1_2026.csv
+
+  Completed in 9s (fast mode)
+2026-02-27 00:18:09 ── NRL lineup check complete ──

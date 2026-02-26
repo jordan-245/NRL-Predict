@@ -8,7 +8,7 @@ rate_limiter        Polite scraping: rate limiting, caching, retry logic.
 rlp_scraper         Core HTML scraper orchestrator.
 rlp_match_parser    Parse match details from RLP round-summary pages.
 rlp_ladder_parser   Parse ladder/standings tables from RLP round-ladder pages.
-rlp_player_parser   Parse player data from RLP season-player and profile pages.
 odds_loader         Load and clean AusSportsBetting historical odds Excel.
-nrl_stats_loader    Load match/player stats from beauhobba/NRL-Data JSON files.
+odds_api            Fetch live fixtures and odds from The Odds API.
+nrl_teamlists       Fetch team lists from the NRL.com official API.
 """

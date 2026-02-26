@@ -184,6 +184,14 @@ def main() -> None:
         standardise_team_columns(ladders_df, ["team"])
 
     # -----------------------------------------------------------------------
+    # Step 3b: Fix home/away using venue data
+    # -----------------------------------------------------------------------
+    print("\n  Fixing home/away team assignment (RLP lists winner first)...")
+    if not matches_df.empty:
+        from processing.venue_home_fix import fix_home_away
+        matches_df = fix_home_away(matches_df)
+
+    # -----------------------------------------------------------------------
     # Step 4: Load odds data
     # -----------------------------------------------------------------------
     print("\n  Loading odds data...")

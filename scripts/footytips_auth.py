@@ -51,6 +51,15 @@ from pathlib import Path
 
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Auto-load .env file
+_env_file = PROJECT_ROOT / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
 CREDS_FILE = PROJECT_ROOT / "config" / ".footytips_creds.json"
 BROWSER_STATE_DIR = PROJECT_ROOT / "config" / ".footytips_browser_state"
 COMPETITION_ID = "656543"
@@ -116,11 +125,9 @@ def save_creds(access_token: str, member_id: str = "", swid: str = "") -> None:
 GMAIL_ACCOUNT = "jordanbaillie@gmail.com"
 
 
-def _poll_gmail_otp(timeout: int = 180, poll_interval: int = 10) -> str | None:
-    """Poll Gmail for the latest ESPN OTP code (skips pre-existing messages)."""
-    print("  📧 Polling Gmail for OTP...")
-
-    # Snapshot existing message IDs
+def _snapshot_gmail_otp_ids() -> tuple[set[str], str | None]:
+    """Snapshot existing ESPN OTP message IDs BEFORE triggering login.
+    Returns (set of message IDs, thread ID or None)."""
     old_msg_ids: set[str] = set()
     otp_thread_id: str | None = None
     try:
@@ -143,6 +150,25 @@ def _poll_gmail_otp(timeout: int = 180, poll_interval: int = 10) -> str | None:
                 old_msg_ids.add(m.group(1))
     except Exception:
         pass
+    return old_msg_ids, otp_thread_id
+
+
+def _poll_gmail_otp(
+    timeout: int = 180,
+    poll_interval: int = 10,
+    pre_snapshot: tuple[set[str], str | None] | None = None,
+) -> str | None:
+    """Poll Gmail for the latest ESPN OTP code (skips pre-existing messages).
+    If pre_snapshot is provided, uses those as the 'old' baseline instead of
+    snapshotting now (avoids race condition where OTP arrives before snapshot).
+    """
+    print("  📧 Polling Gmail for OTP...")
+
+    if pre_snapshot is not None:
+        old_msg_ids, otp_thread_id = pre_snapshot
+        print(f"  📋 Using pre-login snapshot ({len(old_msg_ids)} existing messages)")
+    else:
+        old_msg_ids, otp_thread_id = _snapshot_gmail_otp_ids()
 
     start = time.time()
     while time.time() - start < timeout:
@@ -171,6 +197,7 @@ def _poll_gmail_otp(timeout: int = 180, poll_interval: int = 10) -> str | None:
                     mid_m = re.search(r"^Message-ID:\s*(\S+)", msg, re.MULTILINE)
                     if not mid_m or mid_m.group(1) in old_msg_ids:
                         continue
+                    # Found a NEW message — extract OTP code
                     code_m = re.search(r"font-weight:\s*bold[^>]*>(\d{6})<", msg)
                     if code_m:
                         print(f"  ✅ OTP from Gmail: {code_m.group(1)}")
@@ -360,6 +387,11 @@ def refresh_token(fresh: bool = False, otp_code: str = "") -> str | None:
         if has_login_btn:
             print("  🔐 No saved session — need to log in")
 
+            # Snapshot Gmail OTP thread BEFORE login triggers a new OTP
+            print("  📋 Snapshotting Gmail OTP messages (pre-login)...")
+            _gmail_snapshot = _snapshot_gmail_otp_ids()
+            print(f"     {len(_gmail_snapshot[0])} existing OTP messages tracked")
+
             email = os.environ.get("FOOTYTIPS_EMAIL", "")
             password = os.environ.get("FOOTYTIPS_PASSWORD", "")
             if not email and sys.stdin.isatty():
@@ -423,9 +455,12 @@ def refresh_token(fresh: bool = False, otp_code: str = "") -> str | None:
                     if not otp_code:
                         otp_code = os.environ.get("FOOTYTIPS_OTP", "")
                     if not otp_code:
-                        # Auto-fetch from Gmail via gmcli
+                        # Auto-fetch from Gmail via gmcli (using pre-login snapshot)
                         try:
-                            otp_code = _poll_gmail_otp(timeout=180) or ""
+                            otp_code = _poll_gmail_otp(
+                                timeout=180,
+                                pre_snapshot=_gmail_snapshot,
+                            ) or ""
                         except Exception:
                             pass
                     if not otp_code and sys.stdin.isatty():

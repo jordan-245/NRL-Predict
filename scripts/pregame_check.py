@@ -328,6 +328,53 @@ def resubmit_tip(event: dict, new_tip_team: str, round_num: int, headers: dict) 
 # Telegram messages
 # ---------------------------------------------------------------------------
 
+def _format_change_lines(changes: list[dict], max_lines: int = 8) -> list[str]:
+    """Format lineup changes into readable Telegram lines.
+
+    Shows all changes sorted by impact, with position context.
+    """
+    if not changes:
+        return []
+
+    # Sort: highest absolute impact first, then by jersey number
+    sorted_changes = sorted(
+        changes,
+        key=lambda c: (-abs(c.get("impact", 0)), c.get("jersey_number", 99)),
+    )
+
+    lines = []
+    for c in sorted_changes[:max_lines]:
+        imp = c.get("impact", 0)
+        team_short = c.get("team", "").split()[-1]
+        expected = _esc(c.get("expected", "?"))
+        actual = c.get("actual")
+        jersey = c.get("jersey_number", "?")
+        change_type = c.get("change_type", "?")
+
+        if change_type == "MISSING":
+            replacement = "OUT"
+        else:
+            replacement = _esc(actual) if actual else "?"
+
+        # Impact indicator
+        if abs(imp) > 0.05:
+            emoji = "🔴"  # high-impact scratch
+        elif abs(imp) > 0.01:
+            emoji = "🟡"  # moderate
+        else:
+            emoji = "🔵"  # low/unknown impact
+
+        lines.append(
+            f"  {emoji} {_esc(team_short)} #{jersey}: "
+            f"{expected} → {replacement}"
+        )
+
+    if len(sorted_changes) > max_lines:
+        lines.append(f"  … and {len(sorted_changes) - max_lines} more")
+
+    return lines
+
+
 def send_pregame_report(checks: list[dict], swings: list[dict], now: datetime) -> bool:
     """Send pre-game lineup check summary to Telegram."""
     ts = now.astimezone(AEST).strftime("%H:%M AEST")
@@ -349,16 +396,22 @@ def send_pregame_report(checks: list[dict], swings: list[dict], now: datetime) -
                 f"{_esc(old_tip_short)} → <b>{_esc(new_tip_short)}</b>"
                 f" ({shift:+.1%} shift)"
             )
+            lines.extend(_format_change_lines(chk["lineup_changes"]))
         elif n_changes > 0:
+            shift = chk["prob_shift"]
+            tip_short = chk["old_tip"].split()[-1]
             lines.append(
-                f"✅ <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
-                f"\n   {n_changes} changes — no swing, tip holds"
+                f"⚠️ <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
+                f"\n   {n_changes} late change{'s' if n_changes != 1 else ''}"
+                f" — tip holds ({_esc(tip_short)}, {shift:+.1%})"
             )
+            lines.extend(_format_change_lines(chk["lineup_changes"]))
         else:
             lines.append(
                 f"✅ <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
                 f"\n   No lineup changes"
             )
+        lines.append("")
 
     if not checks:
         lines.append("No games in pre-kickoff window.")
@@ -395,18 +448,6 @@ def send_swing_alert(chk: dict, success: bool, now: datetime) -> bool:
     new_tip_short = chk["new_tip"].split()[-1]
     ko = chk["event"]["_kickoff"].astimezone(AEST).strftime("%I:%M%p")
 
-    # List key changes
-    change_lines = []
-    for c in sorted(chk["lineup_changes"], key=lambda x: abs(x.get("impact", 0)), reverse=True)[:5]:
-        imp = c.get("impact", 0)
-        if abs(imp) > 0.001:
-            emoji = "📈" if imp > 0 else "📉"
-            change_lines.append(
-                f"  {emoji} {_esc(c['team'].split()[-1])} #{c['jersey_number']}: "
-                f"{_esc(c['expected'])} → {_esc(c.get('actual', 'OUT'))} "
-                f"({imp:+.3f})"
-            )
-
     status = "✅ Re-submitted" if success else "❌ FAILED to re-submit"
 
     lines = [
@@ -417,8 +458,9 @@ def send_swing_alert(chk: dict, success: bool, now: datetime) -> bool:
         f"New tip: <b>{_esc(new_tip_short)}</b> ({chk['prob_shift']:+.1%} shift)",
         "",
     ]
+    change_lines = _format_change_lines(chk["lineup_changes"])
     if change_lines:
-        lines.append("Key changes:")
+        lines.append("Late changes:")
         lines.extend(change_lines)
         lines.append("")
     lines.append(status)

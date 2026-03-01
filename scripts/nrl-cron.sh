@@ -130,6 +130,28 @@ tips)
     fi
     echo "$(ts) Predictions generated" >> "$LOG"
 
+    # Step 1b: Capture baseline teamlists for pregame comparisons.
+    # This snapshot becomes the reference for detecting game-day scratches.
+    # Pregame checks diff fresh NRL.com data against this baseline, so only
+    # genuine late scratches are flagged (not off-season roster moves).
+    echo "$(ts) Capturing baseline teamlists for Round $ROUND..." >> "$LOG"
+    $PY -c "
+import sys, glob, re; sys.path.insert(0, '.')
+from scraping.nrl_teamlists import save_baseline, fetch_round_teamlists
+files = sorted(glob.glob('outputs/predictions/round_*_*.csv'))
+if files:
+    m = re.search(r'round_(\d+)_(\d+)', files[-1])
+    if m:
+        rn, yr = int(m.group(1)), int(m.group(2))
+        tl = fetch_round_teamlists(yr, rn, use_cache=True, delay=0.5)
+        path = save_baseline(yr, rn, tl)
+        print(f'Baseline saved: {path} ({len(tl)} matches)')
+    else:
+        print('Could not parse round from prediction filename')
+else:
+    print('No prediction files found')
+" >> "$LOG" 2>&1 || echo "$(ts) ⚠ Baseline capture failed (non-critical)" >> "$LOG"
+
     # Step 2: Ensure token is valid
     if ! ensure_token; then
         echo "$(ts) ── Cannot submit tips (no token) ──" >> "$LOG"

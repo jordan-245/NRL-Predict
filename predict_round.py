@@ -837,7 +837,10 @@ def check_lineups_and_adjust(
     For each team, identifies missing expected starters and adjusts the
     home_win_prob using player impact scores.
     """
-    from scraping.nrl_teamlists import fetch_round_teamlists, diff_lineups, get_expected_starters
+    from scraping.nrl_teamlists import (
+        fetch_round_teamlists, diff_lineups, get_expected_starters,
+        load_baseline, diff_against_baseline, save_baseline,
+    )
     from processing.player_impact import get_player_impact, OUTPUT_PATH as IMPACT_PATH
 
     print("\n  LINEUP CHECK: Fetching NRL.com team lists...")
@@ -850,12 +853,6 @@ def check_lineups_and_adjust(
     else:
         print("    WARNING: No player impact data — run: python -m processing.player_impact")
         print("    Lineup check will show changes but cannot adjust probabilities")
-
-    # Load player appearances for expected starters
-    app_path = PROCESSED_DIR / "player_appearances.parquet"
-    appearances_df = None
-    if app_path.exists():
-        appearances_df = pd.read_parquet(app_path)
 
     # Fetch current team lists from NRL.com
     teamlists = fetch_round_teamlists(year, round_num, use_cache=False, delay=0.5)
@@ -870,7 +867,28 @@ def check_lineups_and_adjust(
         current_by_team[tl["home_team"]] = tl["home_players"]
         current_by_team[tl["away_team"]] = tl["away_players"]
 
-    print(f"    Got team lists for {len(teamlists)} matches\n")
+    print(f"    Got team lists for {len(teamlists)} matches")
+
+    # Load baseline teamlists (captured during Tuesday tips pipeline).
+    # If a baseline exists, compare against it (correct: detects game-day
+    # scratches only).  If not, create one now and fall back to historical
+    # appearances (legacy mode).
+    baseline = load_baseline(year, round_num)
+    use_baseline = baseline is not None
+    if use_baseline:
+        print(f"    Using baseline teamlists ({len(baseline)} teams)")
+    else:
+        print("    No baseline found — saving current as baseline, using legacy diff")
+        save_baseline(year, round_num, teamlists)
+
+    # Legacy fallback: load historical appearances
+    appearances_df = None
+    if not use_baseline:
+        app_path = PROCESSED_DIR / "player_appearances.parquet"
+        if app_path.exists():
+            appearances_df = pd.read_parquet(app_path)
+
+    print()
 
     # Process each match
     results = results.copy()
@@ -889,13 +907,15 @@ def check_lineups_and_adjust(
             if not current_players:
                 continue
 
-            # Get expected starters
-            expected = get_expected_starters(team, appearances_df, n_recent=5)
-            if not expected:
-                continue
-
-            # Diff
-            changes = diff_lineups(team, current_players, expected)
+            if use_baseline:
+                # Compare against Tuesday-announced squad (correct baseline)
+                changes = diff_against_baseline(team, current_players, baseline)
+            else:
+                # Fallback: compare against historical appearances
+                expected = get_expected_starters(team, appearances_df, n_recent=5)
+                if not expected:
+                    continue
+                changes = diff_lineups(team, current_players, expected)
 
             for change in changes:
                 expected_name = change["expected"]

@@ -203,23 +203,32 @@ def run_lineup_check_for_game(
     if IMPACT_PATH.exists():
         impact_df = pd.read_parquet(IMPACT_PATH)
 
-    # Load appearances for expected starters
-    app_path = PROJECT_ROOT / "data" / "processed" / "player_appearances.parquet"
-    appearances_df = None
-    if app_path.exists():
-        appearances_df = pd.read_parquet(app_path)
-
-    # Fetch NRL.com team lists for this round
-    from scraping.nrl_teamlists import fetch_round_teamlists
+    # Fetch NRL.com team lists for this round (fresh, no cache)
+    from scraping.nrl_teamlists import (
+        fetch_round_teamlists, load_baseline, diff_against_baseline,
+        diff_lineups, get_expected_starters,
+    )
     year = datetime.now().year
     round_num = event.get("round", 1)
     teamlists = fetch_round_teamlists(year, round_num, use_cache=False, delay=0.3)
 
-    # Build lookup
+    # Build lookup: team → current player list
     current_by_team = {}
     for tl in teamlists:
         current_by_team[tl["home_team"]] = tl["home_players"]
         current_by_team[tl["away_team"]] = tl["away_players"]
+
+    # Load the baseline teamlist (captured during Tuesday tips pipeline).
+    # This is the correct reference for detecting game-day scratches.
+    baseline = load_baseline(year, round_num)
+    use_baseline = baseline is not None
+
+    # Fallback: if no baseline exists, use historical appearances (legacy).
+    appearances_df = None
+    if not use_baseline:
+        app_path = PROJECT_ROOT / "data" / "processed" / "player_appearances.parquet"
+        if app_path.exists():
+            appearances_df = pd.read_parquet(app_path)
 
     home_adj = 0.0
     away_adj = 0.0
@@ -229,10 +238,17 @@ def run_lineup_check_for_game(
         current_players = current_by_team.get(team, [])
         if not current_players:
             continue
-        expected = get_expected_starters(team, appearances_df, n_recent=5)
-        if not expected:
-            continue
-        changes = diff_lineups(team, current_players, expected)
+
+        if use_baseline:
+            # Compare against Tuesday-announced squad (correct baseline)
+            changes = diff_against_baseline(team, current_players, baseline)
+        else:
+            # Fallback: compare against historical appearances (legacy)
+            expected = get_expected_starters(team, appearances_df, n_recent=5)
+            if not expected:
+                continue
+            changes = diff_lineups(team, current_players, expected)
+
         for change in changes:
             impact = 0.0
             if impact_df is not None:

@@ -290,7 +290,11 @@ def diff_lineups(
     current_players: list[dict],
     expected_starters: dict[int, str],
 ) -> list[dict]:
-    """Compare current team list against expected starters.
+    """Compare current team list against expected starters (legacy).
+
+    This uses historical appearances as the baseline — only suitable for
+    mid-season when no baseline teamlist is available.  Prefer
+    diff_against_baseline() for pregame checks.
 
     Returns list of changes: who's out, who's in, at what position.
     """
@@ -316,6 +320,134 @@ def diff_lineups(
             actual_surname = current_player.get("last_name", "").lower()
 
             if expected_surname != actual_surname:
+                changes.append({
+                    "team": team,
+                    "jersey_number": jersey_num,
+                    "expected": expected_name,
+                    "actual": current_player.get("full_name", "Unknown"),
+                    "change_type": "REPLACED",
+                })
+
+    return changes
+
+
+# ── Baseline teamlist management ──────────────────────────────────
+# The "baseline" is the team list snapshot taken when tips are first
+# generated (typically Tuesday).  Pregame checks should compare game-day
+# teamlists against this baseline to detect genuine late scratches, NOT
+# against historical appearances from prior seasons.
+
+BASELINE_DIR = CACHE_DIR / "baselines"
+
+
+def save_baseline(year: int, round_num: int, teamlists: list[dict] | None = None) -> Path:
+    """Save the current teamlists as the baseline for pregame diffs.
+
+    If teamlists is None, fetches fresh from NRL.com.
+    Called during the Tuesday tips pipeline after predictions are generated.
+
+    Returns the path to the saved baseline file.
+    """
+    BASELINE_DIR.mkdir(parents=True, exist_ok=True)
+    path = BASELINE_DIR / f"round_{round_num}_{year}.json"
+
+    if teamlists is None:
+        teamlists = fetch_round_teamlists(year, round_num, use_cache=True, delay=0.5)
+
+    if not teamlists:
+        logger.warning("No teamlists to save as baseline for %d round %d", year, round_num)
+        return path
+
+    # Extract just the starters (1-13) per team for clean comparison
+    baseline = {}
+    for tl in teamlists:
+        for side in ("home", "away"):
+            team = tl[f"{side}_team"]
+            starters = {}
+            for p in tl.get(f"{side}_starters", tl.get(f"{side}_players", [])):
+                jn = p.get("jersey_number")
+                if jn and jn <= 13:
+                    starters[str(jn)] = {
+                        "full_name": p.get("full_name", ""),
+                        "last_name": p.get("last_name", ""),
+                        "player_id": p.get("player_id"),
+                        "position": p.get("position", ""),
+                    }
+            baseline[team] = starters
+
+    with open(path, "w") as f:
+        json.dump(baseline, f, indent=2)
+    logger.info("Saved baseline teamlists for %d round %d (%d teams)", year, round_num, len(baseline))
+    return path
+
+
+def load_baseline(year: int, round_num: int) -> dict[str, dict] | None:
+    """Load the baseline teamlist snapshot for a round.
+
+    Returns dict: {team_name: {jersey_num_str: {full_name, last_name, ...}}}
+    or None if no baseline exists.
+    """
+    path = BASELINE_DIR / f"round_{round_num}_{year}.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def diff_against_baseline(
+    team: str,
+    current_players: list[dict],
+    baseline: dict[str, dict],
+) -> list[dict]:
+    """Compare current NRL.com teamlist against the Tuesday baseline.
+
+    This is the correct way to detect game-day scratches: compare the
+    fresh pre-kickoff teamlist against the squad announced earlier in
+    the week.  Off-season roster moves don't show up because the
+    baseline already reflects the current-season squad.
+
+    Parameters
+    ----------
+    team : str
+        Canonical team name.
+    current_players : list[dict]
+        Fresh player list from NRL.com (full squad including bench).
+    baseline : dict
+        Output of load_baseline() — {team: {jersey: player_info}}.
+
+    Returns
+    -------
+    list of change dicts with: team, jersey_number, expected, actual, change_type
+    """
+    team_baseline = baseline.get(team, {})
+    if not team_baseline:
+        return []
+
+    changes = []
+    current_by_number = {p["jersey_number"]: p for p in current_players if p.get("jersey_number")}
+
+    for jersey_str, expected_info in team_baseline.items():
+        jersey_num = int(jersey_str)
+        if jersey_num > 13:
+            continue
+
+        expected_name = expected_info.get("full_name", "")
+        expected_surname = expected_info.get("last_name", "").lower()
+        if not expected_surname and expected_name:
+            expected_surname = expected_name.split()[-1].lower()
+
+        current_player = current_by_number.get(jersey_num)
+        if current_player is None:
+            changes.append({
+                "team": team,
+                "jersey_number": jersey_num,
+                "expected": expected_name,
+                "actual": None,
+                "change_type": "MISSING",
+            })
+        else:
+            actual_surname = current_player.get("last_name", "").lower()
+            if expected_surname and actual_surname and expected_surname != actual_surname:
                 changes.append({
                     "team": team,
                     "jersey_number": jersey_num,

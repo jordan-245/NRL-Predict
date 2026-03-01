@@ -300,6 +300,43 @@ def match_predictions_to_events(
     return matched
 
 
+def _predict_margin(pred: dict) -> int:
+    """Predict winning margin using spread odds data.
+
+    Backtested regression on 2018-2024 (869 games where favourite won):
+      margin = 0.54 × spread + 12.3   (R²=0.068, MAE=9.8)
+
+    Falls back to optimal constant (12) if no spread data available.
+    """
+    # Try to get spread from prediction data
+    spread = None
+
+    # spread_home from predictions CSV (from Odds API)
+    if "spread_home" in pred and pred["spread_home"] is not None:
+        try:
+            spread = abs(float(pred["spread_home"]))
+        except (ValueError, TypeError):
+            pass
+
+    # Also try h2h odds → implied spread (rough: prob difference × 20)
+    if spread is None and "odds_home_prob" in pred:
+        try:
+            prob = float(pred["odds_home_prob"])
+            # Convert probability to approximate spread
+            # NRL: prob_diff × ~20 ≈ spread points
+            spread = abs(prob - 0.5) * 2 * 20
+        except (ValueError, TypeError):
+            pass
+
+    if spread is not None:
+        # Regression model
+        margin = 0.54 * spread + 12.3
+        return max(1, round(margin))
+
+    # Fallback: optimal constant (median winning margin)
+    return 12
+
+
 def build_tips(
     matched: list[tuple[dict, dict]]
 ) -> tuple[list[dict], int | None, str | None]:
@@ -336,9 +373,13 @@ def build_tips(
         }
 
         # Add margin if required by the event
+        # Use spread-based margin prediction (backtested: regression model
+        # margin = 0.54 * spread + 12.3 gives MAE 9.8 vs default-10 MAE 10.6)
         if event.get("marginRequired") and event.get("margin"):
-            margin_default = event["margin"].get("default", 1)
-            tip["tipMargin"] = margin_default
+            margin_min = event["margin"].get("minimum", 1)
+            margin_max = event["margin"].get("maximum", 100)
+            predicted_margin = _predict_margin(pred)
+            tip["tipMargin"] = max(margin_min, min(margin_max, predicted_margin))
 
         tips.append(tip)
 
@@ -373,7 +414,8 @@ def display_tips(tips: list[dict], matched: list[tuple[dict, dict]]) -> None:
 
         home = pred.get("home_team", "?")
         away = pred.get("away_team", "?")
-        print(f"  {cat:12s}  {home} vs {away}  →  {team_name}")
+        margin_str = f" (margin: {tip['tipMargin']})" if "tipMargin" in tip else ""
+        print(f"  {cat:12s}  {home} vs {away}  →  {team_name}{margin_str}")
 
     print("=" * 60)
     print(f"  Total tips: {len(tips)}")

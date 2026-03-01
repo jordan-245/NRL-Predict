@@ -491,3 +491,21 @@
   [13:30:09]   0 lineup changes, shift=+0.000, swing=False
   [13:30:25] Done — 1 games checked, 0 swings
 2026-03-01 13:30:25 ── Pre-game check complete ──
+2026-03-01 14:00:01 ── Pre-game check starting ──
+2026-03-01 14:00:01 Checking ESPN token...
+✓ Token valid for 20h 0m
+2026-03-01 14:00:02 Token valid (72025s remaining) — no refresh needed
+  [14:00:03] Pre-game check starting (Sun 14:00 AEST)
+  [14:00:03] Round 1
+  [14:00:04] 8/8 tips currently submitted
+  [14:00:04] No games in 30–90 min window — done
+2026-03-01 14:00:04 ── Pre-game check complete ──
+2026-03-01 14:30:01 ── Pre-game check starting ──
+2026-03-01 14:30:01 Checking ESPN token...
+✓ Token valid for 19h 30m
+2026-03-01 14:30:02 Token valid (70225s remaining) — no refresh needed
+  [14:30:02] Pre-game check starting (Sun 14:30 AEST)
+  [14:30:03] Round 1
+  [14:30:04] 8/8 tips currently submitted
+  [14:30:04] No games in 30–90 min window — done
+2026-03-01 14:30:04 ── Pre-game check complete ──

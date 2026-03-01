@@ -280,6 +280,12 @@ def get_upcoming_round(
     # Step 2: Auto-detect round if needed
     if round_num is None:
         round_num = detect_next_round(events, year)
+    else:
+        detected = detect_next_round(events, year)
+        if detected != round_num:
+            print(f"  ⚠ Forced round {round_num} but API fixtures look like round {detected}")
+            print(f"    Odds API may not have round {round_num} fixtures yet.")
+            print(f"    For accurate predictions, use: --round {round_num} --input data/upcoming/round_{round_num}.csv")
         print(f"  Auto-detected round: {round_num}")
 
     # Step 3: Get odds (1 credit for h2h + spreads combined)

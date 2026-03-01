@@ -58,7 +58,7 @@ import pandas as pd, numpy as np
 preds = pd.read_csv(sorted(__import__('pathlib').Path('outputs/predictions').glob('round_*_2026.csv'))[-1])
 errors = []
 for _, r in preds.iterrows():
-    expected = 0.495 * r['model_CAT_top50'] + 0.505 * r['odds_home_prob']
+    expected = 0.35 * r['model_CAT_top50'] + 0.65 * r['odds_home_prob']
     if abs(expected - r['home_win_prob']) > 0.02:
         errors.append(f'{r[\"home_team\"]} v {r[\"away_team\"]}: blend={r[\"home_win_prob\"]:.4f} expected={expected:.4f}')
     odds_fav_home = r['odds_home_prob'] > 0.5
@@ -177,6 +177,6 @@ If any step fails and you cannot fix it automatically:
 - The tipping competition is real — incorrect tips cost points
 - Always dry-run before submitting
 - Always verify after submitting
-- The blend formula is: `home_win_prob = 0.495 * model_CAT_top50 + 0.505 * odds_home_prob`
+- The blend formula is: `home_win_prob = 0.35 * model_CAT_top50 + 0.65 * odds_home_prob`
 - Tips can be resubmitted (overwritten) until lockout (first game kickoff)
 - Round 1 2026 starts March 1. Regular season is rounds 1-27.

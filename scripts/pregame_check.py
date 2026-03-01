@@ -248,24 +248,39 @@ def run_lineup_check_for_game(
             else:
                 away_adj -= impact
 
-    # Cap adjustments
-    MAX_ADJ = 0.15
-    home_adj = np.clip(home_adj, -MAX_ADJ, MAX_ADJ)
-    away_adj = np.clip(away_adj, -MAX_ADJ, MAX_ADJ)
-    total_adj = home_adj - away_adj
+    # Cap adjustments per-team AND net total
+    MAX_TEAM_ADJ = 0.15
+    MAX_NET_ADJ = 0.15  # cap the net shift too (was uncapped → ±0.30 bug)
+    home_adj = np.clip(home_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+    away_adj = np.clip(away_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+    total_adj = np.clip(home_adj - away_adj, -MAX_NET_ADJ, MAX_NET_ADJ)
+
+    # Round 1 dampening: off-season roster moves ≠ game-day scratches.
+    # Most "lineup changes" at season start are trades/retirements, not
+    # injuries.  Dampen to 25% to avoid false swings.
+    if round_num <= 1:
+        total_adj *= 0.25
+
+    # Resolve old tip name before applying adjustment
+    try:
+        old_tip_std = standardise_team_name(pred["tip"])
+    except KeyError:
+        old_tip_std = pred["tip"]
 
     new_prob = np.clip(old_prob + total_adj, 0.05, 0.95)
     new_tip = api_home if new_prob >= 0.5 else api_away
+
+    # Swing guard: only allow a tip flip on close games (TOSS-UP / weak LEAN).
+    # Strong favourites (>60% confidence ≈ >0.20 conf score) should never be
+    # overridden by lineup adjustments alone.
+    old_confidence = abs(old_prob - 0.5) * 2
+    if new_tip != old_tip_std and old_confidence > 0.20:
+        new_tip = old_tip_std  # block the swing, keep original tip
 
     result["lineup_changes"] = all_changes
     result["prob_shift"] = new_prob - old_prob
     result["new_prob"] = new_prob
     result["new_tip"] = new_tip
-
-    try:
-        old_tip_std = standardise_team_name(pred["tip"])
-    except KeyError:
-        old_tip_std = pred["tip"]
     result["old_tip"] = old_tip_std
     result["is_swing"] = (new_tip != old_tip_std)
 

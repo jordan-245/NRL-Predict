@@ -926,12 +926,12 @@ def check_lineups_and_adjust(
                 elif side == "away":
                     away_adj -= impact  # losing this player hurts away
 
-        # Apply adjustments (cap per-team adjustment to ±0.15 to prevent
-        # over-adjustment at season start when many roster changes show up)
+        # Apply adjustments (cap per-team AND net total to ±0.15)
         MAX_TEAM_ADJ = 0.15
+        MAX_NET_ADJ = 0.15
         home_adj = np.clip(home_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
         away_adj = np.clip(away_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
-        total_adj = home_adj - away_adj  # net effect on home_win_prob
+        total_adj = np.clip(home_adj - away_adj, -MAX_NET_ADJ, MAX_NET_ADJ)
         if abs(total_adj) > 0.001:
             old_prob = row["home_win_prob"]
             new_prob = np.clip(old_prob + total_adj, 0.05, 0.95)

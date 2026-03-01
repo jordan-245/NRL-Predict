@@ -78,16 +78,39 @@ detect_round() {
 case "$MODE" in
 
 # ── REFRESH (Monday 8pm AEST) ──────────────────────────────────
+# 1. Scrape last round, rebuild data, record results
+# 2. Plan the week: fetch kickoff times, set pregame cron schedule
 refresh)
     echo "$(ts) ── NRL refresh starting ──" >> "$LOG"
 
-    if $PY refresh_week.py --record-tips >> "$LOG" 2>&1; then
-        echo "$(ts) ── NRL refresh complete ──" >> "$LOG"
-        notify refresh
-    else
+    if ! $PY refresh_week.py --record-tips >> "$LOG" 2>&1; then
         echo "$(ts) ── NRL refresh FAILED ──" >> "$LOG"
         notify error "refresh" "$LOG"
+        exit 1
     fi
+    echo "$(ts) ── NRL refresh complete ──" >> "$LOG"
+
+    # Plan the week: fetch kickoff times, update pregame cron
+    echo "$(ts) ── Planning week schedule ──" >> "$LOG"
+    if $PY scripts/plan_week.py >> "$LOG" 2>&1; then
+        echo "$(ts) ── Week schedule planned ──" >> "$LOG"
+
+        # Check for tip deadline warnings
+        TIP_WARNING=$($PY -c "
+import json
+s = json.load(open('config/week_schedule.json'))
+w = s.get('tip_warning')
+if w: print(w)
+" 2>/dev/null)
+
+        if [ -n "$TIP_WARNING" ]; then
+            echo "$(ts) ⚠ $TIP_WARNING" >> "$LOG"
+        fi
+    else
+        echo "$(ts) ⚠ Week schedule planning failed (non-critical)" >> "$LOG"
+    fi
+
+    notify refresh
     ;;
 
 # ── TIPS (Tuesday 5pm AEST) ────────────────────────────────────

@@ -206,7 +206,24 @@ def send_refresh_summary(round_num: int | None = None, year: int = 2026) -> bool
     if round_num:
         lines.append(f"\n  Round refreshed: {round_num}")
 
-    lines.append(f"\n  Next: <code>python predict_round.py --auto</code>")
+    # Include week schedule if available
+    sched_path = PROJECT_ROOT / "config" / "week_schedule.json"
+    if sched_path.exists():
+        import json
+        sched = json.load(open(sched_path))
+        rnd = sched.get("round", "?")
+        lines.append(f"\n📅 <b>Round {rnd} Schedule</b>")
+        for day_key in sorted(sched.get("game_days", {})):
+            info = sched["game_days"][day_key]
+            n = info["n_games"]
+            first_ko = info["first_ko"].split(" ")[1] if " " in info["first_ko"] else info["first_ko"]
+            lines.append(f"  {info['day_name'][:3]} {day_key}: {n} game{'s' if n > 1 else ''} from {first_ko}")
+        lines.append(f"  ⏰ First KO: {sched.get('first_kickoff', '?')}")
+        lines.append(f"  📝 Tips due: {sched.get('tip_deadline', '?')}")
+        if sched.get("tip_warning"):
+            lines.append(f"  ⚠️ {_esc(sched['tip_warning'])}")
+    else:
+        lines.append(f"\n  Next: <code>python predict_round.py --auto</code>")
 
     return send_message("\n".join(lines))
 

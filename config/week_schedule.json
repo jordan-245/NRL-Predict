@@ -1,0 +1,174 @@
+{
+  "round": 1,
+  "generated_at": "2026-02-27 10:21 AEST",
+  "first_kickoff": "2026-03-01 12:15 AEST",
+  "last_kickoff": "2026-03-08 15:05 AEST",
+  "tip_deadline": "2026-03-01 09:15 AEST",
+  "tip_warning": "WARNING: First kickoff Sunday 01 Mar 12:15 is BEFORE Tuesday 5pm (03 Mar). Tips must be submitted before Sunday 01 Mar 09:15!",
+  "game_days": {
+    "2026-03-01": {
+      "date": "2026-03-01",
+      "day_name": "Sunday",
+      "day_num": 6,
+      "first_ko": "2026-03-01 12:15",
+      "last_ko": "2026-03-01 14:30",
+      "n_games": 2,
+      "games": [
+        "Newcastle Knights v North Queensland Cowboys (2026-03-01 12:15)",
+        "Canterbury Bulldogs v St George Illawarra Dragons (2026-03-01 14:30)"
+      ]
+    },
+    "2026-03-05": {
+      "date": "2026-03-05",
+      "day_name": "Thursday",
+      "day_num": 3,
+      "first_ko": "2026-03-05 19:00",
+      "last_ko": "2026-03-05 19:00",
+      "n_games": 1,
+      "games": [
+        "Melbourne Storm v Parramatta Eels (2026-03-05 19:00)"
+      ]
+    },
+    "2026-03-06": {
+      "date": "2026-03-06",
+      "day_name": "Friday",
+      "day_num": 4,
+      "first_ko": "2026-03-06 17:00",
+      "last_ko": "2026-03-06 19:00",
+      "n_games": 2,
+      "games": [
+        "New Zealand Warriors v Sydney Roosters (2026-03-06 17:00)",
+        "Brisbane Broncos v Penrith Panthers (2026-03-06 19:00)"
+      ]
+    },
+    "2026-03-07": {
+      "date": "2026-03-07",
+      "day_name": "Saturday",
+      "day_num": 5,
+      "first_ko": "2026-03-07 16:30",
+      "last_ko": "2026-03-07 18:35",
+      "n_games": 2,
+      "games": [
+        "Cronulla Sharks v Gold Coast Titans (2026-03-07 16:30)",
+        "Manly Sea Eagles v Canberra Raiders (2026-03-07 18:35)"
+      ]
+    },
+    "2026-03-08": {
+      "date": "2026-03-08",
+      "day_name": "Sunday",
+      "day_num": 6,
+      "first_ko": "2026-03-08 15:05",
+      "last_ko": "2026-03-08 15:05",
+      "n_games": 1,
+      "games": [
+        "Dolphins v South Sydney Rabbitohs (2026-03-08 15:05)"
+      ]
+    }
+  },
+  "pregame_windows": {
+    "2026-03-01": {
+      "day_name": "Sunday",
+      "check_start": "10:15",
+      "check_end": "15:00",
+      "start_hour": 10,
+      "end_hour": 16
+    },
+    "2026-03-05": {
+      "day_name": "Thursday",
+      "check_start": "17:00",
+      "check_end": "19:30",
+      "start_hour": 17,
+      "end_hour": 20
+    },
+    "2026-03-06": {
+      "day_name": "Friday",
+      "check_start": "15:00",
+      "check_end": "19:30",
+      "start_hour": 15,
+      "end_hour": 20
+    },
+    "2026-03-07": {
+      "day_name": "Saturday",
+      "check_start": "14:30",
+      "check_end": "19:05",
+      "start_hour": 14,
+      "end_hour": 20
+    },
+    "2026-03-08": {
+      "day_name": "Sunday",
+      "check_start": "13:05",
+      "check_end": "15:35",
+      "start_hour": 13,
+      "end_hour": 16
+    }
+  },
+  "cron_pregame_spec": "*/30 10-20 * * 0,4,5,6",
+  "cron_pregame_days": "0,4,5,6",
+  "cron_pregame_hours": "10-20",
+  "fixtures": [
+    {
+      "home_team": "Newcastle Knights",
+      "away_team": "North Queensland Cowboys",
+      "kickoff_utc": "2026-03-01T02:15:00+00:00",
+      "kickoff_aest": "2026-03-01 12:15",
+      "day_of_week": "Sunday",
+      "day_num": 6
+    },
+    {
+      "home_team": "Canterbury Bulldogs",
+      "away_team": "St George Illawarra Dragons",
+      "kickoff_utc": "2026-03-01T04:30:00+00:00",
+      "kickoff_aest": "2026-03-01 14:30",
+      "day_of_week": "Sunday",
+      "day_num": 6
+    },
+    {
+      "home_team": "Melbourne Storm",
+      "away_team": "Parramatta Eels",
+      "kickoff_utc": "2026-03-05T09:00:00+00:00",
+      "kickoff_aest": "2026-03-05 19:00",
+      "day_of_week": "Thursday",
+      "day_num": 3
+    },
+    {
+      "home_team": "New Zealand Warriors",
+      "away_team": "Sydney Roosters",
+      "kickoff_utc": "2026-03-06T07:00:00+00:00",
+      "kickoff_aest": "2026-03-06 17:00",
+      "day_of_week": "Friday",
+      "day_num": 4
+    },
+    {
+      "home_team": "Brisbane Broncos",
+      "away_team": "Penrith Panthers",
+      "kickoff_utc": "2026-03-06T09:00:00+00:00",
+      "kickoff_aest": "2026-03-06 19:00",
+      "day_of_week": "Friday",
+      "day_num": 4
+    },
+    {
+      "home_team": "Cronulla Sharks",
+      "away_team": "Gold Coast Titans",
+      "kickoff_utc": "2026-03-07T06:30:00+00:00",
+      "kickoff_aest": "2026-03-07 16:30",
+      "day_of_week": "Saturday",
+      "day_num": 5
+    },
+    {
+      "home_team": "Manly Sea Eagles",
+      "away_team": "Canberra Raiders",
+      "kickoff_utc": "2026-03-07T08:35:00+00:00",
+      "kickoff_aest": "2026-03-07 18:35",
+      "day_of_week": "Saturday",
+      "day_num": 5
+    },
+    {
+      "home_team": "Dolphins",
+      "away_team": "South Sydney Rabbitohs",
+      "kickoff_utc": "2026-03-08T05:05:00+00:00",
+      "kickoff_aest": "2026-03-08 15:05",
+      "day_of_week": "Sunday",
+      "day_num": 6
+    }
+  ]
+}

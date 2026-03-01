@@ -177,6 +177,43 @@ FEATURE_COLS = [
     "home_defense_improving", "away_defense_improving", "defense_trend_diff",
     "scoring_env_ratio", "fav_consistency",
     "elo_spread_agree", "strong_team_rested", "home_ground_x_form",
+    # V4 Team Season Stats — prior-season averages (78)
+    *[f"home_ts_{s}" for s in [
+        "line_breaks_average", "tackle_breaks_average", "possession_pct_average",
+        "set_completion_pct_average", "all_run_metres_average",
+        "post_contact_metres_average", "offloads_average", "errors_average",
+        "penalties_conceded_average", "missed_tackles_average",
+        "ineffective_tackles_average", "handling_errors_average",
+        "intercepts_average", "kick_return_metres_average", "points_average",
+        "tries_average", "try_assists_average", "tackles_average",
+        "conversion_pct_average", "line_engaged_average", "supports_average",
+        "all_runs_average", "all_receipts_average", "goals_average",
+        "decoy_runs_average", "dummy_half_runs_average",
+    ]],
+    *[f"away_ts_{s}" for s in [
+        "line_breaks_average", "tackle_breaks_average", "possession_pct_average",
+        "set_completion_pct_average", "all_run_metres_average",
+        "post_contact_metres_average", "offloads_average", "errors_average",
+        "penalties_conceded_average", "missed_tackles_average",
+        "ineffective_tackles_average", "handling_errors_average",
+        "intercepts_average", "kick_return_metres_average", "points_average",
+        "tries_average", "try_assists_average", "tackles_average",
+        "conversion_pct_average", "line_engaged_average", "supports_average",
+        "all_runs_average", "all_receipts_average", "goals_average",
+        "decoy_runs_average", "dummy_half_runs_average",
+    ]],
+    *[f"ts_diff_{s}" for s in [
+        "line_breaks_average", "tackle_breaks_average", "possession_pct_average",
+        "set_completion_pct_average", "all_run_metres_average",
+        "post_contact_metres_average", "offloads_average", "errors_average",
+        "penalties_conceded_average", "missed_tackles_average",
+        "ineffective_tackles_average", "handling_errors_average",
+        "intercepts_average", "kick_return_metres_average", "points_average",
+        "tries_average", "try_assists_average", "tackles_average",
+        "conversion_pct_average", "line_engaged_average", "supports_average",
+        "all_runs_average", "all_receipts_average", "goals_average",
+        "decoy_runs_average", "dummy_half_runs_average",
+    ]],
 ]
 
 
@@ -583,6 +620,7 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     all_matches = v4.compute_kickoff_features(all_matches)
     all_matches = v4.compute_lineup_stability_features(all_matches)
     all_matches = v4.compute_player_impact_features(all_matches)
+    all_matches = v4.compute_team_stats_features(all_matches)
     all_matches = v4.compute_v4_engineered_features(all_matches)
 
     # Create target
@@ -754,20 +792,22 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     # Fill missing values
     X_train, X_pred = fill_missing(X_train_raw, X_pred_raw)
 
-    # Feature selection — top-50 by XGBoost importance
-    print("    Selecting top-50 features...")
+    # Feature selection — top-60 by XGBoost importance
+    # (expanded from top-50 to capture team season stats features)
+    TOP_N_FEATURES = 60
+    print(f"    Selecting top-{TOP_N_FEATURES} features...")
     selector = xgb.XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.02,
                                   verbosity=0, random_state=42)
     selector.fit(X_train, y_train, sample_weight=sample_weights)
     imp = pd.Series(selector.feature_importances_, index=feature_cols).sort_values(ascending=False)
-    top50 = list(imp.head(50).index)
+    top50 = list(imp.head(TOP_N_FEATURES).index)
     X_train_top = X_train[top50]
     X_pred_top = X_pred[top50]
 
     predictions = {}
     trained_models = {}
 
-    # --- CatBoost (top-50 features) — sole model in blend ---
+    # --- CatBoost (top features) — sole model in blend ---
     print(f"    Training CatBoost on {len(top50)} features...")
     m = CatBoostClassifier(**BEST_CAT_PARAMS)
     m.fit(X_train_top, y_train, sample_weight=sample_weights)

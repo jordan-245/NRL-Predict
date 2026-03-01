@@ -691,6 +691,80 @@ def compute_v4_engineered_features(df):
 
 
 # =========================================================================
+# TEAM SEASON STATS FEATURES
+# =========================================================================
+
+TEAM_STATS_PATH = PROJECT_ROOT / "data" / "processed" / "team_season_stats.parquet"
+
+# Core per-game averages to use as features
+_TS_COLS = [
+    "line_breaks_average", "tackle_breaks_average", "possession_pct_average",
+    "set_completion_pct_average", "all_run_metres_average",
+    "post_contact_metres_average", "offloads_average", "errors_average",
+    "penalties_conceded_average", "missed_tackles_average",
+    "ineffective_tackles_average", "handling_errors_average",
+    "intercepts_average", "kick_return_metres_average", "points_average",
+    "tries_average", "try_assists_average", "tackles_average",
+    "conversion_pct_average", "line_engaged_average", "supports_average",
+    "all_runs_average", "all_receipts_average", "goals_average",
+    "decoy_runs_average", "dummy_half_runs_average",
+]
+
+
+def compute_team_stats_features(matches):
+    """Merge prior-season team stats onto match rows.
+
+    For a match in year Y, each team gets its stats from year Y-1.
+    Creates home_ts_*, away_ts_*, and ts_diff_* columns.
+    """
+    print("\n" + "=" * 80)
+    print("  V4: COMPUTING TEAM SEASON STATS FEATURES")
+    print("=" * 80)
+
+    df = matches.copy()
+
+    if not TEAM_STATS_PATH.exists():
+        print("  No team_season_stats.parquet found — skipping")
+        return df
+
+    ts = pd.read_parquet(TEAM_STATS_PATH)
+    available = [c for c in _TS_COLS if c in ts.columns]
+    if not available:
+        print("  No matching stat columns found — skipping")
+        return df
+
+    # Home team: use year Y-1 stats for year Y matches
+    home_merge = ts[["year", "team"] + available].copy()
+    home_merge["merge_year"] = home_merge["year"] + 1
+    home_merge = home_merge.drop(columns=["year"])
+    home_merge = home_merge.rename(columns={"team": "home_team", "merge_year": "year"})
+    home_merge = home_merge.rename(columns={c: f"home_ts_{c}" for c in available})
+
+    # Away team: same logic
+    away_merge = ts[["year", "team"] + available].copy()
+    away_merge["merge_year"] = away_merge["year"] + 1
+    away_merge = away_merge.drop(columns=["year"])
+    away_merge = away_merge.rename(columns={"team": "away_team", "merge_year": "year"})
+    away_merge = away_merge.rename(columns={c: f"away_ts_{c}" for c in available})
+
+    pre_len = len(df)
+    df = df.merge(home_merge, on=["year", "home_team"], how="left")
+    df = df.merge(away_merge, on=["year", "away_team"], how="left")
+    assert len(df) == pre_len, f"Merge changed row count: {pre_len} → {len(df)}"
+
+    # Diff features
+    for stat in available:
+        h_col = f"home_ts_{stat}"
+        a_col = f"away_ts_{stat}"
+        df[f"ts_diff_{stat}"] = df[h_col] - df[a_col]
+
+    n_new = len(available) * 3  # home + away + diff
+    coverage = df[f"home_ts_{available[0]}"].notna().mean() * 100
+    print(f"  Added {n_new} team stats features ({coverage:.0f}% coverage)")
+    return df
+
+
+# =========================================================================
 # BUILD V4 FEATURE MATRIX
 # =========================================================================
 
@@ -846,6 +920,10 @@ def build_v4_feature_matrix(df):
         "scoring_env_ratio", "fav_consistency",
         "elo_spread_agree", "strong_team_rested", "home_ground_x_form",
     ]
+
+    # V4 Team Season Stats (prior-season averages)
+    for stat in _TS_COLS:
+        feature_cols += [f"home_ts_{stat}", f"away_ts_{stat}", f"ts_diff_{stat}"]
 
     # Filter to existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]

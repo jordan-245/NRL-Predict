@@ -83,6 +83,7 @@ def build_all_features(matches, ladders, odds, elo_params):
     all_m = v4.compute_kickoff_features(all_m)
     all_m = v4.compute_lineup_stability_features(all_m)
     all_m = v4.compute_player_impact_features(all_m)
+    all_m = v4.compute_team_stats_features(all_m)
     all_m = v4.compute_v4_engineered_features(all_m)
 
     all_m["home_win"] = np.where(

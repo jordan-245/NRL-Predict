@@ -693,6 +693,86 @@ def compute_v4_engineered_features(df):
 # =========================================================================
 # TEAM SEASON STATS FEATURES
 # =========================================================================
+# REFEREE FEATURES
+# =========================================================================
+
+OFFICIALS_PATH = PROJECT_ROOT / "data" / "processed" / "match_officials.parquet"
+
+
+def compute_referee_features(matches):
+    """Add referee-based features: rolling home win rate by ref.
+
+    Uses only historical data (look-back) so no leakage.
+    """
+    print("\n" + "=" * 80)
+    print("  V4: COMPUTING REFEREE FEATURES")
+    print("=" * 80)
+
+    df = matches.copy()
+
+    if not OFFICIALS_PATH.exists():
+        print("  No match_officials.parquet found — skipping")
+        for c in ["ref_home_win_rate", "ref_games", "ref_is_high_home"]:
+            df[c] = np.nan
+        return df
+
+    officials = pd.read_parquet(OFFICIALS_PATH)
+    officials = officials[officials["referee"] != ""].copy()
+
+    # Build referee → match lookup
+    off_lookup = {}
+    for _, row in officials.iterrows():
+        key = (row["year"], str(row["round"]), row["home_team"], row["away_team"])
+        off_lookup[key] = row["referee"]
+
+    # Assign referee to each match
+    refs = []
+    for _, row in df.iterrows():
+        key = (row.get("year"), str(row.get("round", "")), row.get("home_team"), row.get("away_team"))
+        refs.append(off_lookup.get(key, ""))
+    df["_referee"] = refs
+
+    # Compute rolling referee home win rate (look-back only)
+    ref_home_wins = {}  # ref → [list of (year, round, home_win)]
+    ref_hw_rate = []
+    ref_game_count = []
+
+    for _, row in df.iterrows():
+        ref = row["_referee"]
+        if ref and ref in ref_home_wins:
+            history = ref_home_wins[ref]
+            # Use all prior games by this ref
+            if history:
+                rate = np.mean(history)
+                ref_hw_rate.append(rate)
+                ref_game_count.append(len(history))
+            else:
+                ref_hw_rate.append(np.nan)
+                ref_game_count.append(0)
+        else:
+            ref_hw_rate.append(np.nan)
+            ref_game_count.append(0)
+
+        # Update history (after computing feature — no leakage)
+        if ref and pd.notna(row.get("home_score")) and pd.notna(row.get("away_score")):
+            hw = 1.0 if row["home_score"] > row["away_score"] else 0.0
+            if ref not in ref_home_wins:
+                ref_home_wins[ref] = []
+            ref_home_wins[ref].append(hw)
+
+    df["ref_home_win_rate"] = ref_hw_rate
+    df["ref_games"] = ref_game_count
+    # Binary: is this ref in the top quartile for home bias?
+    df["ref_is_high_home"] = (df["ref_home_win_rate"] > 0.60).astype(float)
+
+    n_valid = df["ref_home_win_rate"].notna().sum()
+    n_refs = df["_referee"].nunique() - (1 if "" in df["_referee"].values else 0)
+    df = df.drop(columns=["_referee"])
+    print(f"  Added referee features ({n_valid}/{len(df)} valid, {n_refs} unique refs)")
+    return df
+
+
+# =========================================================================
 
 TEAM_STATS_PATH = PROJECT_ROOT / "data" / "processed" / "team_season_stats.parquet"
 
@@ -924,6 +1004,9 @@ def build_v4_feature_matrix(df):
     # V4 Team Season Stats (prior-season averages)
     for stat in _TS_COLS:
         feature_cols += [f"home_ts_{stat}", f"away_ts_{stat}", f"ts_diff_{stat}"]
+
+    # V4 Referee features
+    feature_cols += ["ref_home_win_rate", "ref_games", "ref_is_high_home"]
 
     # Filter to existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]

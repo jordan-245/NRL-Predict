@@ -214,6 +214,8 @@ FEATURE_COLS = [
         "all_runs_average", "all_receipts_average", "goals_average",
         "decoy_runs_average", "dummy_half_runs_average",
     ]],
+    # V4 Referee features (3)
+    "ref_home_win_rate", "ref_games", "ref_is_high_home",
 ]
 
 
@@ -621,6 +623,7 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     all_matches = v4.compute_lineup_stability_features(all_matches)
     all_matches = v4.compute_player_impact_features(all_matches)
     all_matches = v4.compute_team_stats_features(all_matches)
+    all_matches = v4.compute_referee_features(all_matches)
     all_matches = v4.compute_v4_engineered_features(all_matches)
 
     # Create target
@@ -826,13 +829,62 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
         odds_probs = np.full(len(upcoming), 0.55)
     odds_probs = np.clip(odds_probs, 1e-7, 1-1e-7)
 
-    # --- Apply OptBlend weights ---
-    print("    Blending with OptBlend weights...")
-    blended = np.zeros(len(upcoming), dtype=float)
+    # --- Meta-learner: LR that learns optimal non-linear blend ---
+    # Train on cross-validated model predictions from training data
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import cross_val_predict
+
+    print("    Training meta-learner (LR stacking)...")
+    # Get out-of-fold model predictions on training data
+    # Compute out-of-fold predictions via manual CV (CatBoost needs sample_weight)
+    from sklearn.model_selection import KFold
+    cat_oof = np.zeros(len(y_train))
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    for fold_train, fold_val in kf.split(X_train_top):
+        fold_model = CatBoostClassifier(**{**BEST_CAT_PARAMS, "verbose": 0})
+        fold_model.fit(
+            X_train_top.iloc[fold_train], y_train[fold_train],
+            sample_weight=sample_weights[fold_train],
+        )
+        cat_oof[fold_val] = fold_model.predict_proba(X_train_top.iloc[fold_val])[:, 1]
+
+    train_odds = historical["odds_home_prob"].values.copy()
+    train_odds = np.where(np.isnan(train_odds), 0.55, train_odds)
+
+    # Build meta-features
+    X_meta_train = pd.DataFrame({
+        "model_prob": cat_oof,
+        "odds_prob": train_odds,
+        "model_x_odds": cat_oof * train_odds,
+        "prob_diff": cat_oof - train_odds,
+        "abs_diff": np.abs(cat_oof - train_odds),
+        "confidence": np.maximum(train_odds, 1 - train_odds),
+    }).fillna(0.5)
+
+    meta_lr = LogisticRegression(C=1.0, max_iter=1000)
+    meta_lr.fit(X_meta_train, y_train)
+
+    # Apply meta-learner to prediction set
+    cat_pred = predictions["CAT_top50"]
+    X_meta_pred = pd.DataFrame({
+        "model_prob": cat_pred,
+        "odds_prob": odds_probs,
+        "model_x_odds": cat_pred * odds_probs,
+        "prob_diff": cat_pred - odds_probs,
+        "abs_diff": np.abs(cat_pred - odds_probs),
+        "confidence": np.maximum(odds_probs, 1 - odds_probs),
+    }).fillna(0.5)
+
+    meta_blended = meta_lr.predict_proba(X_meta_pred)[:, 1]
+
+    # Fallback: also compute simple linear blend
+    blended_linear = np.zeros(len(upcoming), dtype=float)
     for model_name, weight in BLEND_WEIGHTS.items():
-        blended += weight * predictions[model_name]
-    blended += BLEND_ODDS_WEIGHT * odds_probs
-    blended = np.clip(blended, 0.01, 0.99)
+        blended_linear += weight * predictions[model_name]
+    blended_linear += BLEND_ODDS_WEIGHT * odds_probs
+
+    # Use meta-learner as primary, with safety clip
+    blended = np.clip(meta_blended, 0.01, 0.99)
 
     # Build results DataFrame
     results = upcoming[["home_team", "away_team", "venue", "date", "round"]].copy()
@@ -858,6 +910,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
         "top50": top50,
         "feature_cols": feature_cols,
         "medians": medians,
+        "meta_lr": meta_lr,
     }
 
     return results, artifacts

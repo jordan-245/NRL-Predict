@@ -291,16 +291,40 @@ def check_odds_refresh(
         fresh_home_prob = 1.0 - fresh_home_prob
 
     # Get the model component from the original prediction
-    # Original blend: home_win_prob = 0.495 * model + 0.505 * old_odds_prob
     old_odds_prob = pred.get("odds_home_prob", old_prob)
-    if abs(BLEND_ODDS_WEIGHT) > 0.001:
-        model_pred = (old_prob - BLEND_ODDS_WEIGHT * old_odds_prob) / BLEND_MODEL_WEIGHT
-        model_pred = np.clip(model_pred, 0.01, 0.99)
-    else:
-        model_pred = old_prob
+    model_pred = pred.get("model_CAT_top50", None)
+    if model_pred is None:
+        # Reverse-engineer model prediction from linear blend
+        if abs(BLEND_ODDS_WEIGHT) > 0.001:
+            model_pred = (old_prob - BLEND_ODDS_WEIGHT * old_odds_prob) / BLEND_MODEL_WEIGHT
+            model_pred = np.clip(model_pred, 0.01, 0.99)
+        else:
+            model_pred = old_prob
 
-    # Re-blend with fresh odds
-    new_prob = BLEND_MODEL_WEIGHT * model_pred + BLEND_ODDS_WEIGHT * fresh_home_prob
+    # Try meta-learner from cache, fallback to linear re-blend
+    try:
+        from predict_round import _cache_path, load_model_cache
+        rnd = pred.get("round", "1")
+        yr = pred.get("year", 2026)
+        cache = load_model_cache(_cache_path(int(rnd) if str(rnd).isdigit() else 1, yr))
+        meta_lr = cache.get("artifacts", {}).get("meta_lr") if cache else None
+    except Exception:
+        meta_lr = None
+
+    if meta_lr is not None:
+        import pandas as pd
+        X_meta = pd.DataFrame({
+            "model_prob": [model_pred],
+            "odds_prob": [fresh_home_prob],
+            "model_x_odds": [model_pred * fresh_home_prob],
+            "prob_diff": [model_pred - fresh_home_prob],
+            "abs_diff": [abs(model_pred - fresh_home_prob)],
+            "confidence": [max(fresh_home_prob, 1 - fresh_home_prob)],
+        })
+        new_prob = float(meta_lr.predict_proba(X_meta)[:, 1][0])
+    else:
+        # Fallback: linear re-blend with fresh odds
+        new_prob = BLEND_MODEL_WEIGHT * model_pred + BLEND_ODDS_WEIGHT * fresh_home_prob
     new_prob = np.clip(new_prob, 0.01, 0.99)
     new_tip = api_home if new_prob >= 0.5 else api_away
 

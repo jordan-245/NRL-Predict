@@ -523,12 +523,26 @@ def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFr
         odds_probs = np.full(len(upcoming_feat), 0.55)
     odds_probs = np.clip(odds_probs, 1e-7, 1 - 1e-7)
 
-    # OptBlend
-    blended = np.zeros(len(upcoming_feat), dtype=float)
-    for model_name, weight in BLEND_WEIGHTS.items():
-        blended += weight * predictions[model_name]
-    blended += BLEND_ODDS_WEIGHT * odds_probs
-    blended = np.clip(blended, 0.01, 0.99)
+    # Meta-learner blend (if cached) or fallback to linear OptBlend
+    meta_lr = artifacts.get("meta_lr")
+    if meta_lr is not None:
+        cat_pred = predictions.get("CAT_top50", np.full(len(upcoming_feat), 0.5))
+        X_meta_pred = pd.DataFrame({
+            "model_prob": cat_pred,
+            "odds_prob": odds_probs,
+            "model_x_odds": cat_pred * odds_probs,
+            "prob_diff": cat_pred - odds_probs,
+            "abs_diff": np.abs(cat_pred - odds_probs),
+            "confidence": np.maximum(odds_probs, 1 - odds_probs),
+        }).fillna(0.5)
+        blended = np.clip(meta_lr.predict_proba(X_meta_pred)[:, 1], 0.01, 0.99)
+    else:
+        # Fallback: linear OptBlend
+        blended = np.zeros(len(upcoming_feat), dtype=float)
+        for model_name, weight in BLEND_WEIGHTS.items():
+            blended += weight * predictions[model_name]
+        blended += BLEND_ODDS_WEIGHT * odds_probs
+        blended = np.clip(blended, 0.01, 0.99)
 
     results = upcoming_feat[["home_team", "away_team", "venue", "date", "round"]].copy()
     results["home_win_prob"] = blended

@@ -1,7 +1,7 @@
 [
   {
     "match_id": "20261110110",
-    "match_state": "HalfTime",
+    "match_state": "SecondHalf",
     "round_number": 1,
     "start_time": "2026-03-01T02:15:00Z",
     "venue": "Allegiant Stadium",
@@ -89,7 +89,7 @@
         "position": "Prop",
         "jersey_number": 8,
         "is_captain": false,
-        "is_on_field": true
+        "is_on_field": false
       },
       {
         "player_id": 504597,
@@ -179,7 +179,7 @@
         "position": "Interchange",
         "jersey_number": 17,
         "is_captain": false,
-        "is_on_field": false
+        "is_on_field": true
       },
       {
         "player_id": 100008414,
@@ -473,7 +473,7 @@
         "position": "Prop",
         "jersey_number": 8,
         "is_captain": false,
-        "is_on_field": true
+        "is_on_field": false
       },
       {
         "player_id": 504597,
@@ -697,7 +697,7 @@
         "position": "Interchange",
         "jersey_number": 17,
         "is_captain": false,
-        "is_on_field": false
+        "is_on_field": true
       },
       {
         "player_id": 100008414,

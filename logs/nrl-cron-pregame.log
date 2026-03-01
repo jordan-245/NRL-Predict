@@ -479,3 +479,15 @@
   [13:00:10]   ✓ Re-submitted: St George Illawarra Dragons — Your tips have been submitted successfully
   [13:00:25] Done — 1 games checked, 1 swings
 2026-03-01 13:00:25 ── Pre-game check complete ──
+2026-03-01 13:30:02 ── Pre-game check starting ──
+2026-03-01 13:30:02 Checking ESPN token...
+✓ Token valid for 20h 30m
+2026-03-01 13:30:02 Token valid (73825s remaining) — no refresh needed
+  [13:30:03] Pre-game check starting (Sun 13:30 AEST)
+  [13:30:03] Round 1
+  [13:30:04] 8/8 tips currently submitted
+  [13:30:04] Games in window: Bulldogs v Dragons (02:30PM)
+  [13:30:04] Checking Bulldogs v Dragons...
+  [13:30:09]   0 lineup changes, shift=+0.000, swing=False
+  [13:30:25] Done — 1 games checked, 0 swings
+2026-03-01 13:30:25 ── Pre-game check complete ──

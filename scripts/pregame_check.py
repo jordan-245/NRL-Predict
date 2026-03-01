@@ -57,9 +57,18 @@ AEST = timezone(timedelta(hours=10))
 # Window: check games kicking off 30–90 min from now
 WINDOW_MIN_MINUTES = 30
 WINDOW_MAX_MINUTES = 90
-# Swing threshold: probability shift needed to trigger a re-submit
-# Only re-submits if the predicted WINNER actually flips
-SWING_FLIP_ONLY = True
+
+# ── Impact adjustment policy ──────────────────────────────────────
+# Backtested over 2020-2025 (1137 matches, 648 parameter combos):
+#   - 76% of configs HURT accuracy
+#   - Best config: +4 tips / 1137 matches (0.35%)
+#   - Direction rate: 46.8% (adjustments are anti-predictive)
+#   - Swing accuracy: 53.2% (barely above coin-flip)
+#
+# Conclusion: impact adjustments are noise. Lineup changes are
+# reported via Telegram for manual review, but probabilities are
+# NOT adjusted and tips are NOT auto-resubmitted.
+AUTO_ADJUST_ENABLED = False
 
 LOG_DIR = PROJECT_ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -264,34 +273,41 @@ def run_lineup_check_for_game(
             else:
                 away_adj -= impact
 
-    # Cap adjustments per-team AND net total
-    MAX_TEAM_ADJ = 0.15
-    MAX_NET_ADJ = 0.15  # cap the net shift too (was uncapped → ±0.30 bug)
-    home_adj = np.clip(home_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
-    away_adj = np.clip(away_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
-    total_adj = np.clip(home_adj - away_adj, -MAX_NET_ADJ, MAX_NET_ADJ)
-
-    # Round 1 dampening: off-season roster moves ≠ game-day scratches.
-    # Most "lineup changes" at season start are trades/retirements, not
-    # injuries.  Dampen to 25% to avoid false swings.
-    if round_num <= 1:
-        total_adj *= 0.25
-
-    # Resolve old tip name before applying adjustment
+    # Resolve old tip name
     try:
         old_tip_std = standardise_team_name(pred["tip"])
     except KeyError:
         old_tip_std = pred["tip"]
 
-    new_prob = np.clip(old_prob + total_adj, 0.05, 0.95)
-    new_tip = api_home if new_prob >= 0.5 else api_away
+    # ── Adjustment policy ──────────────────────────────────────
+    # Backtested 2020-2025: impact adjustments are anti-predictive
+    # (direction rate 46.8%, swing accuracy 53.2%).  Default is
+    # info-only: report scratches but do NOT adjust probs or tips.
+    if AUTO_ADJUST_ENABLED:
+        MAX_TEAM_ADJ = 0.15
+        MAX_NET_ADJ = 0.15
+        home_adj = np.clip(home_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+        away_adj = np.clip(away_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+        total_adj = np.clip(home_adj - away_adj, -MAX_NET_ADJ, MAX_NET_ADJ)
+        if round_num <= 1:
+            total_adj *= 0.25
 
-    # Swing guard: only allow a tip flip on close games (TOSS-UP / weak LEAN).
-    # Strong favourites (>60% confidence ≈ >0.20 conf score) should never be
-    # overridden by lineup adjustments alone.
-    old_confidence = abs(old_prob - 0.5) * 2
-    if new_tip != old_tip_std and old_confidence > 0.20:
-        new_tip = old_tip_std  # block the swing, keep original tip
+        new_prob = np.clip(old_prob + total_adj, 0.05, 0.95)
+        new_tip = api_home if new_prob >= 0.5 else api_away
+
+        # Swing guard: block swings on strong favourites
+        old_confidence = abs(old_prob - 0.5) * 2
+        if new_tip != old_tip_std and old_confidence > 0.20:
+            new_tip = old_tip_std
+    else:
+        # Info-only: compute theoretical shift for display, never change tip
+        MAX_TEAM_ADJ = 0.15
+        MAX_NET_ADJ = 0.15
+        h = np.clip(home_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+        a = np.clip(away_adj, -MAX_TEAM_ADJ, MAX_TEAM_ADJ)
+        total_adj = np.clip(h - a, -MAX_NET_ADJ, MAX_NET_ADJ)
+        new_prob = np.clip(old_prob + total_adj, 0.05, 0.95)
+        new_tip = old_tip_std  # never change the tip
 
     result["lineup_changes"] = all_changes
     result["prob_shift"] = new_prob - old_prob
@@ -552,16 +568,15 @@ def main():
         n = len(chk["lineup_changes"])
         log(f"  {n} lineup changes, shift={chk['prob_shift']:+.3f}, swing={chk['is_swing']}")
 
-        if chk["is_swing"]:
+        if chk["is_swing"] and AUTO_ADJUST_ENABLED:
             swings.append(chk)
             log(f"  ⚡ SWING: {chk['old_tip']} → {chk['new_tip']}")
-            # Re-submit the changed tip
             ok = resubmit_tip(event, chk["new_tip"], round_num, headers)
             send_swing_alert(chk, ok, now)
 
-    # Send summary to Telegram (only if there were games to check)
-    if checks and not swings:
-        # No swings — send a quiet summary
+    # Always send lineup report when there are games to check
+    # (shows scratches for manual review even when auto-adjust is off)
+    if checks:
         send_pregame_report(checks, swings, now)
 
     log(f"Done — {len(checks)} games checked, {len(swings)} swings")

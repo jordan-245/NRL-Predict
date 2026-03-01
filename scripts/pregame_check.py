@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-NRL Pre-Game Lineup Check & Tip Adjuster
-=========================================
+NRL Pre-Game Check: Late Odds Refresh + Lineup Monitor
+======================================================
 Runs periodically on game days (Thu–Sun). For each game kicking off in
 the next 30–90 minutes:
-  1. Fetches NRL.com team lists
-  2. Computes lineup-adjusted probabilities
-  3. Compares adjusted tip with the currently submitted tip on ESPN Footytips
-  4. If the tip FLIPS (different winner), re-submits just that game
-  5. Sends Telegram notification for any swings or missing tips
+  1. Fetches fresh odds from The Odds API
+  2. Re-blends model prediction with fresh odds
+  3. For close games (<60% confidence): if tip flips, re-submits
+  4. Fetches NRL.com team lists and reports scratches to Telegram
+  5. Alerts on missing tips
+
+Late odds refresh (backtested 2018-2025, 1246 matches):
+  - +13 tips improvement, 0 years negative, 55% flip accuracy
+  - Market moves toward winner 61.7% of the time
+
+Lineup impact adjustments are disabled (backtested as noise).
+Lineup changes are reported for manual review only.
 
 Designed to run via cron every 30 min on game days:
     */30 13-20 * * 4-7  scripts/nrl-cron.sh pregame
@@ -58,16 +65,25 @@ AEST = timezone(timedelta(hours=10))
 WINDOW_MIN_MINUTES = 30
 WINDOW_MAX_MINUTES = 90
 
-# ── Impact adjustment policy ──────────────────────────────────────
-# Backtested over 2020-2025 (1137 matches, 648 parameter combos):
-#   - 76% of configs HURT accuracy
-#   - Best config: +4 tips / 1137 matches (0.35%)
-#   - Direction rate: 46.8% (adjustments are anti-predictive)
-#   - Swing accuracy: 53.2% (barely above coin-flip)
+# ── Late odds refresh policy ──────────────────────────────────────
+# Backtested over 2018-2025 (1246 matches):
+#   - Closing odds beat opening odds by +13 tips (0 years negative)
+#   - Market moves toward winner 61.7% of the time
+#   - Flip accuracy: 55% (vs 53% for lineup impact)
 #
-# Conclusion: impact adjustments are noise. Lineup changes are
-# reported via Telegram for manual review, but probabilities are
-# NOT adjusted and tips are NOT auto-resubmitted.
+# Strategy: for close games (blend confidence < REFRESH_THRESHOLD),
+# re-blend with fresh odds before kickoff.  If the tip flips,
+# auto-resubmit.  LOCKs are never touched.
+ODDS_REFRESH_ENABLED = True
+REFRESH_THRESHOLD = 0.60   # refresh games where open prob is within 40-60%
+
+# Model blend weights (must match predict_round.py)
+BLEND_MODEL_WEIGHT = 0.495
+BLEND_ODDS_WEIGHT = 0.505
+
+# ── Lineup impact adjustment policy ──────────────────────────────
+# Backtested 2020-2025: impact adjustments are noise (direction rate
+# 46.8%).  Lineup changes are reported via Telegram for info only.
 AUTO_ADJUST_ENABLED = False
 
 LOG_DIR = PROJECT_ROOT / "logs"
@@ -150,6 +166,162 @@ def find_missing_tips(
             event["_kickoff"] = ko
             missing.append(event)
     return missing
+
+
+def fetch_fresh_odds() -> dict[str, dict]:
+    """Fetch fresh odds from The Odds API for NRL matches.
+
+    Costs 1 API credit. Returns dict keyed by canonical home team name:
+    {team: {"h2h_home": float, "h2h_away": float, "home_prob": float, ...}}
+    """
+    try:
+        from scraping.odds_api import get_odds
+
+        raw_events = get_odds(regions="au", markets="h2h")
+        if not raw_events:
+            return {}
+
+        result = {}
+        for ev in raw_events:
+            home_raw = ev.get("home_team", "")
+            away_raw = ev.get("away_team", "")
+
+            try:
+                home = standardise_team_name(home_raw)
+                away = standardise_team_name(away_raw)
+            except KeyError:
+                continue
+
+            # Extract best available h2h odds (average across bookmakers)
+            h2h_home_prices = []
+            h2h_away_prices = []
+            for bm in ev.get("bookmakers", []):
+                for market in bm.get("markets", []):
+                    if market.get("key") != "h2h":
+                        continue
+                    for outcome in market.get("outcomes", []):
+                        try:
+                            ot = standardise_team_name(outcome["name"])
+                        except KeyError:
+                            continue
+                        if ot == home:
+                            h2h_home_prices.append(outcome["price"])
+                        elif ot == away:
+                            h2h_away_prices.append(outcome["price"])
+
+            if not h2h_home_prices or not h2h_away_prices:
+                continue
+
+            # Use median for robustness
+            import statistics
+            h2h_home = statistics.median(h2h_home_prices)
+            h2h_away = statistics.median(h2h_away_prices)
+
+            if h2h_home <= 0 or h2h_away <= 0:
+                continue
+
+            home_prob = (1 / h2h_home) / (1 / h2h_home + 1 / h2h_away)
+            result[home] = {
+                "home_team": home,
+                "away_team": away,
+                "h2h_home": round(h2h_home, 3),
+                "h2h_away": round(h2h_away, 3),
+                "home_prob": home_prob,
+                "bookmakers": len(h2h_home_prices),
+            }
+        return result
+    except Exception as e:
+        log(f"  ⚠ Odds API error: {e}")
+        return {}
+
+
+def check_odds_refresh(
+    event: dict,
+    predictions: list[dict],
+    fresh_odds: dict[str, dict],
+) -> dict | None:
+    """Check if fresh odds warrant a tip change for a close game.
+
+    Returns dict with refresh info, or None if no action needed.
+    """
+    comps = event.get("competitors", [])
+    home_comp = next((c for c in comps if c.get("homeAway") == "home"), comps[0])
+    away_comp = next((c for c in comps if c.get("homeAway") == "away"), comps[1])
+    api_home = TEAM_NAME_BY_ID.get(home_comp["teamId"], "?")
+    api_away = TEAM_NAME_BY_ID.get(away_comp["teamId"], "?")
+
+    # Find matching prediction
+    pred = None
+    for p in predictions:
+        try:
+            ph = standardise_team_name(p["home_team"])
+            pa = standardise_team_name(p["away_team"])
+        except KeyError:
+            continue
+        if (ph == api_home and pa == api_away) or (ph == api_away and pa == api_home):
+            pred = p
+            break
+
+    if not pred:
+        return None
+
+    old_prob = pred["home_win_prob"]
+    old_tip = pred["tip"]
+    try:
+        old_tip = standardise_team_name(old_tip)
+    except KeyError:
+        pass
+
+    # Is this a close game? (below REFRESH_THRESHOLD)
+    old_confidence = abs(old_prob - 0.5) * 2
+    if old_confidence > (REFRESH_THRESHOLD - 0.5) * 2:
+        return None  # LOCK — don't touch
+
+    # Find fresh odds for this match
+    fresh = fresh_odds.get(api_home)
+    if not fresh:
+        # Try away team as key (in case home/away are swapped)
+        fresh = fresh_odds.get(api_away)
+        if not fresh:
+            return None
+
+    fresh_home_prob = fresh["home_prob"]
+    # Ensure correct orientation
+    if fresh.get("home_team") == api_away:
+        fresh_home_prob = 1.0 - fresh_home_prob
+
+    # Get the model component from the original prediction
+    # Original blend: home_win_prob = 0.495 * model + 0.505 * old_odds_prob
+    old_odds_prob = pred.get("odds_home_prob", old_prob)
+    if abs(BLEND_ODDS_WEIGHT) > 0.001:
+        model_pred = (old_prob - BLEND_ODDS_WEIGHT * old_odds_prob) / BLEND_MODEL_WEIGHT
+        model_pred = np.clip(model_pred, 0.01, 0.99)
+    else:
+        model_pred = old_prob
+
+    # Re-blend with fresh odds
+    new_prob = BLEND_MODEL_WEIGHT * model_pred + BLEND_ODDS_WEIGHT * fresh_home_prob
+    new_prob = np.clip(new_prob, 0.01, 0.99)
+    new_tip = api_home if new_prob >= 0.5 else api_away
+
+    is_flip = (new_tip != old_tip)
+    odds_movement = fresh_home_prob - old_odds_prob
+
+    return {
+        "home": api_home,
+        "away": api_away,
+        "old_prob": old_prob,
+        "new_prob": new_prob,
+        "old_tip": old_tip,
+        "new_tip": new_tip,
+        "old_odds_prob": old_odds_prob,
+        "fresh_odds_prob": fresh_home_prob,
+        "odds_movement": odds_movement,
+        "model_pred": model_pred,
+        "is_flip": is_flip,
+        "h2h_home": fresh.get("h2h_home"),
+        "h2h_away": fresh.get("h2h_away"),
+    }
 
 
 def run_lineup_check_for_game(
@@ -391,45 +563,77 @@ def _format_change_lines(changes: list[dict], max_lines: int = 8) -> list[str]:
     return lines
 
 
-def send_pregame_report(checks: list[dict], swings: list[dict], now: datetime) -> bool:
-    """Send pre-game lineup check summary to Telegram."""
+def send_pregame_report(
+    checks: list[dict],
+    swings: list[dict],
+    now: datetime,
+    odds_refreshes: list[dict] | None = None,
+    odds_flips: list[dict] | None = None,
+) -> bool:
+    """Send pre-game check summary to Telegram."""
     ts = now.astimezone(AEST).strftime("%H:%M AEST")
-    lines = [f"📋 <b>Pre-Game Lineup Check</b> — {ts}", ""]
+    lines = [f"📋 <b>Pre-Game Check</b> — {ts}", ""]
 
+    odds_refreshes = odds_refreshes or []
+    odds_flips = odds_flips or []
+
+    # Build set of games that had odds flips (to annotate in the lineup section)
+    odds_flip_games = {(r["home"], r["away"]) for r in odds_flips}
+
+    # Group info by game
+    game_keys = []
     for chk in checks:
-        home_short = chk["home"].split()[-1]
-        away_short = chk["away"].split()[-1]
-        ko = chk["event"]["_kickoff"].astimezone(AEST).strftime("%I:%M%p")
-        n_changes = len(chk["lineup_changes"])
+        key = (chk["home"], chk["away"])
+        if key not in game_keys:
+            game_keys.append(key)
 
-        if chk["is_swing"]:
-            old_tip_short = chk["old_tip"].split()[-1]
-            new_tip_short = chk["new_tip"].split()[-1]
-            shift = chk["prob_shift"]
+    for home, away in game_keys:
+        home_short = home.split()[-1]
+        away_short = away.split()[-1]
+
+        # Find matching check and odds refresh
+        chk = next((c for c in checks if c["home"] == home and c["away"] == away), None)
+        oref = next((r for r in odds_refreshes if r["home"] == home and r["away"] == away), None)
+
+        ko = chk["event"]["_kickoff"].astimezone(AEST).strftime("%I:%M%p") if chk else "?"
+        n_changes = len(chk["lineup_changes"]) if chk else 0
+
+        # ── Odds refresh line ──
+        if oref and oref["is_flip"]:
+            old_short = _esc(oref["old_tip"].split()[-1])
+            new_short = _esc(oref["new_tip"].split()[-1])
+            move = oref["odds_movement"]
             lines.append(
-                f"⚡ <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
-                f"\n   {n_changes} changes → TIP CHANGED: "
-                f"{_esc(old_tip_short)} → <b>{_esc(new_tip_short)}</b>"
-                f" ({shift:+.1%} shift)"
+                f"📊 <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
+                f"\n   Odds shifted {move:+.1%} → TIP CHANGED: "
+                f"{old_short} → <b>{new_short}</b>"
+                f"\n   Odds: ${oref['h2h_home']:.2f} / ${oref['h2h_away']:.2f}"
             )
-            lines.extend(_format_change_lines(chk["lineup_changes"]))
-        elif n_changes > 0:
-            shift = chk["prob_shift"]
-            tip_short = chk["old_tip"].split()[-1]
+        elif oref and abs(oref["odds_movement"]) > 0.02:
+            move = oref["odds_movement"]
+            tip_short = _esc(oref["old_tip"].split()[-1])
             lines.append(
-                f"⚠️ <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
-                f"\n   {n_changes} late change{'s' if n_changes != 1 else ''}"
-                f" — tip holds ({_esc(tip_short)}, {shift:+.1%})"
+                f"📊 <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
+                f"\n   Odds drifted {move:+.1%} — tip holds ({tip_short})"
+                f"\n   Odds: ${oref['h2h_home']:.2f} / ${oref['h2h_away']:.2f}"
             )
-            lines.extend(_format_change_lines(chk["lineup_changes"]))
         else:
             lines.append(
                 f"✅ <b>{_esc(home_short)} v {_esc(away_short)}</b> ({ko})"
-                f"\n   No lineup changes"
             )
+            if oref:
+                lines.append(f"   Odds: ${oref['h2h_home']:.2f} / ${oref['h2h_away']:.2f}")
+
+        # ── Lineup changes line ──
+        if n_changes > 0:
+            lines.append(f"   {n_changes} late scratch{'es' if n_changes != 1 else ''}:")
+            lines.extend(_format_change_lines(chk["lineup_changes"]))
+        elif chk:
+            lines.append(f"   No lineup changes")
+
         lines.append("")
 
-    if not checks:
+    if not checks and not odds_refreshes:
         lines.append("No games in pre-kickoff window.")
 
     return send_message("\n".join(lines))
@@ -546,7 +750,7 @@ def main():
     try:
         predictions = load_predictions(round_num, year)
     except SystemExit:
-        log("✗ No predictions file — cannot check for swings")
+        log("✗ No predictions file — cannot check")
         send_message(
             f"🚨 <b>NRL Pre-Game Check FAILED</b>\n\n"
             f"No predictions file for Round {round_num}. "
@@ -554,32 +758,60 @@ def main():
         )
         sys.exit(1)
 
-    # Run lineup check for each game in window
+    # ── Step 1: Late odds refresh ─────────────────────────────────
+    odds_refreshes = []
+    odds_flips = []
+    if ODDS_REFRESH_ENABLED:
+        log("Fetching fresh odds...")
+        fresh_odds = fetch_fresh_odds()
+        if fresh_odds:
+            log(f"  Got odds for {len(fresh_odds)} matches")
+            for event in in_window:
+                refresh = check_odds_refresh(event, predictions, fresh_odds)
+                if refresh:
+                    odds_refreshes.append({"event": event, **refresh})
+                    if refresh["is_flip"]:
+                        odds_flips.append({"event": event, **refresh})
+                        log(f"  📊 ODDS FLIP: {refresh['old_tip'].split()[-1]} → "
+                            f"{refresh['new_tip'].split()[-1]} "
+                            f"(odds {refresh['old_odds_prob']:.1%} → {refresh['fresh_odds_prob']:.1%})")
+                        # Auto-resubmit
+                        ok = resubmit_tip(event, refresh["new_tip"], round_num, headers)
+                        log(f"  {'✓' if ok else '✗'} Re-submitted: {refresh['new_tip']}")
+                    else:
+                        move = refresh["odds_movement"]
+                        if abs(move) > 0.02:
+                            log(f"  📊 Odds moved {move:+.1%} for "
+                                f"{refresh['home'].split()[-1]} v {refresh['away'].split()[-1]}"
+                                f" — tip holds")
+        else:
+            log("  No fresh odds available")
+
+    # ── Step 2: Lineup check (info only) ──────────────────────────
     checks = []
-    swings = []
     for event in in_window:
         comps = event.get("competitors", [])
         names = " v ".join(c.get("name", "?") for c in comps)
-        log(f"Checking {names}...")
+        log(f"Checking lineups: {names}...")
 
         chk = run_lineup_check_for_game(event, predictions, headers)
         checks.append(chk)
 
         n = len(chk["lineup_changes"])
-        log(f"  {n} lineup changes, shift={chk['prob_shift']:+.3f}, swing={chk['is_swing']}")
+        if n > 0:
+            log(f"  {n} lineup changes (info only)")
 
-        if chk["is_swing"] and AUTO_ADJUST_ENABLED:
-            swings.append(chk)
-            log(f"  ⚡ SWING: {chk['old_tip']} → {chk['new_tip']}")
-            ok = resubmit_tip(event, chk["new_tip"], round_num, headers)
-            send_swing_alert(chk, ok, now)
+    # ── Step 3: Send Telegram report ──────────────────────────────
+    if checks or odds_refreshes:
+        send_pregame_report(
+            checks, [],  # no lineup swings (disabled)
+            now,
+            odds_refreshes=odds_refreshes,
+            odds_flips=odds_flips,
+        )
 
-    # Always send lineup report when there are games to check
-    # (shows scratches for manual review even when auto-adjust is off)
-    if checks:
-        send_pregame_report(checks, swings, now)
-
-    log(f"Done — {len(checks)} games checked, {len(swings)} swings")
+    n_flips = len(odds_flips)
+    log(f"Done — {len(checks)} games checked, {n_flips} odds flips")
 
 
 if __name__ == "__main__":

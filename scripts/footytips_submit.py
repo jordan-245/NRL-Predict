@@ -231,14 +231,23 @@ def load_predictions(round_num: int, season: int = 2026) -> list[dict]:
     with open(pred_file, "r") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            predictions.append({
+            pred = {
                 "home_team": row["home_team"],
                 "away_team": row["away_team"],
                 "tip": row["tip"],
                 "confidence": float(row["confidence"]),
                 "home_win_prob": float(row["home_win_prob"]),
                 "away_win_prob": float(row["away_win_prob"]),
-            })
+            }
+            # Optional fields used by pregame odds refresh
+            for col in ["odds_home_prob", "odds_away_prob", "model_CAT_top50",
+                         "spread_home", "h2h_home", "h2h_away"]:
+                if col in row and row[col]:
+                    try:
+                        pred[col] = float(row[col])
+                    except (ValueError, TypeError):
+                        pass
+            predictions.append(pred)
     return predictions
 
 

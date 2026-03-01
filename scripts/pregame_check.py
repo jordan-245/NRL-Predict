@@ -77,9 +77,9 @@ WINDOW_MAX_MINUTES = 90
 ODDS_REFRESH_ENABLED = True
 REFRESH_THRESHOLD = 0.60   # refresh games where open prob is within 40-60%
 
-# Model blend weights (must match predict_round.py)
-BLEND_MODEL_WEIGHT = 0.495
-BLEND_ODDS_WEIGHT = 0.505
+# Model blend weights (must match pipelines/v4.py)
+BLEND_MODEL_WEIGHT = 0.35
+BLEND_ODDS_WEIGHT = 0.65
 
 # ── Lineup impact adjustment policy ──────────────────────────────
 # Backtested 2020-2025: impact adjustments are noise (direction rate

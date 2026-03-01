@@ -127,10 +127,20 @@ SAMPLE_WEIGHT_DECAY = 0.907
 # CatBoost + Odds (Raw-Blend) is the most robust option from backtest:
 #   68.1% accuracy, 0.5989 log loss — beats the old 7-model 67.6%.
 # Training only CatBoost also halves the retrain time.
+#
+# Walk-forward backtest (2018-2025, 1538 games):
+#   25% model = 68.7% (all-time best)
+#   35% model = 68.5% (best on recent 2022-2025)
+#   50% model = 68.3% (original)
+#   0%  model = 68.1% (pure odds)
+#
+# Using 35% as compromise: near-optimal across eras, and model
+# accuracy is improving as training data grows.
+# Toss-up games (<55%): 30% model gives 60.3% (best tier result).
 V4_BLEND_WEIGHTS = {
-    "CAT_top50":  0.495,
+    "CAT_top50":  0.35,
 }
-V4_BLEND_ODDS_WEIGHT = 0.505  # 1 - sum(model weights)
+V4_BLEND_ODDS_WEIGHT = 0.65  # 1 - sum(model weights)
 
 
 def safe_log_loss(y_true, y_prob, eps=1e-7):

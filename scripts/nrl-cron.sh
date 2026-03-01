@@ -90,6 +90,14 @@ refresh)
     fi
     echo "$(ts) ── NRL refresh complete ──" >> "$LOG"
 
+    # Evaluate last round's predictions vs actual results
+    echo "$(ts) ── Weekly evaluation starting ──" >> "$LOG"
+    if $PY scripts/weekly_eval.py >> "$LOG" 2>&1; then
+        echo "$(ts) ── Weekly evaluation complete ──" >> "$LOG"
+    else
+        echo "$(ts) ⚠ Weekly evaluation failed (non-critical)" >> "$LOG"
+    fi
+
     # Plan the week: fetch kickoff times, update pregame cron
     echo "$(ts) ── Planning week schedule ──" >> "$LOG"
     if $PY scripts/plan_week.py >> "$LOG" 2>&1; then

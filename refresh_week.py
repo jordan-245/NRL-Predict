@@ -53,7 +53,13 @@ MODEL_CACHE_DIR = PROJECT_ROOT / "outputs" / "model_cache"
 
 
 def detect_last_round(year: int) -> int | None:
-    """Auto-detect the last completed round from matches.parquet."""
+    """Auto-detect the last completed round from matches.parquet.
+
+    Primary: highest round with non-null scores (already scraped).
+    Fallback: if no scores yet (start-of-season), find the latest
+    round where at least one fixture date is in the past — that round
+    needs its results scraped for the first time.
+    """
     matches_path = PROCESSED_DIR / "matches.parquet"
     if not matches_path.exists():
         return None
@@ -66,18 +72,35 @@ def detect_last_round(year: int) -> int | None:
 
     # Find the highest round number with non-null scores
     played = year_matches.dropna(subset=["home_score"])
-    if played.empty:
-        return None
+    if not played.empty:
+        rounds = []
+        for r in played["round"].unique():
+            try:
+                rounds.append(int(r))
+            except (ValueError, TypeError):
+                pass
+        if rounds:
+            return max(rounds)
 
-    # Convert round to int where possible
-    rounds = []
-    for r in played["round"].unique():
-        try:
-            rounds.append(int(r))
-        except (ValueError, TypeError):
-            pass
+    # ── Fallback: start-of-season, no scores scraped yet ──────────
+    # Look for fixture rounds where at least one match date has passed.
+    if "parsed_date" in year_matches.columns:
+        now = pd.Timestamp.now()
+        past = year_matches[year_matches["parsed_date"] < now]
+        if not past.empty:
+            rounds = []
+            for r in past["round"].unique():
+                try:
+                    rounds.append(int(r))
+                except (ValueError, TypeError):
+                    pass
+            if rounds:
+                detected = max(rounds)
+                print(f"  (start-of-season fallback: round {detected} "
+                      f"has past fixture dates but no scores yet)")
+                return detected
 
-    return max(rounds) if rounds else None
+    return None
 
 
 def _standardise_team_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
@@ -161,6 +184,12 @@ def step2_update_matches(new_matches: list[dict], year: int, round_num: int):
         # Remove existing data for this round (idempotent update)
         mask = ~((existing["year"] == year) & (existing["round"] == str(round_num)))
         existing = existing[mask]
+
+        # Align datetime resolution (parquet stores us, scraper returns ns)
+        for col in existing.columns:
+            if pd.api.types.is_datetime64_any_dtype(existing[col]) and col in new_df.columns:
+                new_df[col] = new_df[col].astype(existing[col].dtype)
+
         combined = pd.concat([existing, new_df], ignore_index=True)
     else:
         combined = new_df

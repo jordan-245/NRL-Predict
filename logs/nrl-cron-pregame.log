@@ -545,3 +545,979 @@
   [16:30:04] 8/8 tips currently submitted
   [16:30:04] No games in 30–90 min window — done
 2026-03-01 16:30:04 ── Pre-game check complete ──
+2026-03-01 17:00:01 ── Pre-game check starting ──
+2026-03-01 17:00:01 Checking ESPN token...
+✓ Token valid for 17h 0m
+2026-03-01 17:00:01 Token valid (61226s remaining) — no refresh needed
+  [17:00:03] Pre-game check starting (Sun 17:00 AEST)
+  [17:00:04] Round 1
+  [17:00:05] 8/8 tips currently submitted
+  [17:00:05] No games in 30–90 min window — done
+2026-03-01 17:00:05 ── Pre-game check complete ──
+2026-03-01 17:30:01 ── Pre-game check starting ──
+2026-03-01 17:30:01 Checking ESPN token...
+✓ Token valid for 16h 30m
+2026-03-01 17:30:01 Token valid (59426s remaining) — no refresh needed
+  [17:30:02] Pre-game check starting (Sun 17:30 AEST)
+  [17:30:02] Round 1
+  [17:30:04] 8/8 tips currently submitted
+  [17:30:04] No games in 30–90 min window — done
+2026-03-01 17:30:04 ── Pre-game check complete ──
+2026-03-01 18:00:01 ── Pre-game check starting ──
+2026-03-01 18:00:01 Checking ESPN token...
+✓ Token valid for 16h 0m
+2026-03-01 18:00:01 Token valid (57626s remaining) — no refresh needed
+  [18:00:02] Pre-game check starting (Sun 18:00 AEST)
+  [18:00:03] Round 1
+  [18:00:04] 8/8 tips currently submitted
+  [18:00:04] No games in 30–90 min window — done
+2026-03-01 18:00:04 ── Pre-game check complete ──
+2026-03-01 18:30:01 ── Pre-game check starting ──
+2026-03-01 18:30:01 Checking ESPN token...
+✓ Token valid for 15h 30m
+2026-03-01 18:30:01 Token valid (55826s remaining) — no refresh needed
+  [18:30:02] Pre-game check starting (Sun 18:30 AEST)
+  [18:30:03] Round 1
+  [18:30:04] 8/8 tips currently submitted
+  [18:30:04] No games in 30–90 min window — done
+2026-03-01 18:30:04 ── Pre-game check complete ──
+2026-03-01 19:00:01 ── Pre-game check starting ──
+2026-03-01 19:00:01 Checking ESPN token...
+✓ Token valid for 15h 0m
+2026-03-01 19:00:01 Token valid (54026s remaining) — no refresh needed
+  [19:00:02] Pre-game check starting (Sun 19:00 AEST)
+  [19:00:03] Round 1
+  [19:00:04] 8/8 tips currently submitted
+  [19:00:04] No games in 30–90 min window — done
+2026-03-01 19:00:04 ── Pre-game check complete ──
+2026-03-01 19:30:01 ── Pre-game check starting ──
+2026-03-01 19:30:01 Checking ESPN token...
+✓ Token valid for 14h 30m
+2026-03-01 19:30:01 Token valid (52226s remaining) — no refresh needed
+  [19:30:02] Pre-game check starting (Sun 19:30 AEST)
+  [19:30:03] Round 1
+  [19:30:04] 8/8 tips currently submitted
+  [19:30:04] No games in 30–90 min window — done
+2026-03-01 19:30:04 ── Pre-game check complete ──
+2026-03-01 20:00:01 ── Pre-game check starting ──
+2026-03-01 20:00:01 Checking ESPN token...
+✓ Token valid for 14h 0m
+2026-03-01 20:00:01 Token valid (50426s remaining) — no refresh needed
+  [20:00:02] Pre-game check starting (Sun 20:00 AEST)
+  [20:00:03] Round 1
+  [20:00:04] 8/8 tips currently submitted
+  [20:00:04] No games in 30–90 min window — done
+2026-03-01 20:00:04 ── Pre-game check complete ──
+2026-03-01 20:30:01 ── Pre-game check starting ──
+2026-03-01 20:30:01 Checking ESPN token...
+✓ Token valid for 13h 30m
+2026-03-01 20:30:01 Token valid (48626s remaining) — no refresh needed
+  [20:30:03] Pre-game check starting (Sun 20:30 AEST)
+  [20:30:04] Round 1
+  [20:30:04] 8/8 tips currently submitted
+  [20:30:04] No games in 30–90 min window — done
+2026-03-01 20:30:05 ── Pre-game check complete ──
+2026-03-05 10:00:02 ── Pre-game check starting ──
+2026-03-05 10:00:02 Checking ESPN token...
+✗ Token expired or missing
+2026-03-05 10:00:02 Token expired/missing — refreshing...
+⚠ Token expired or missing. Refreshing...
+
+  🌐 Navigating to ESPN Footytips...
+  ⏳ Waiting for OneID...
+  ✓ Token captured (silent refresh from saved session)
+  🔑 New token valid for 23h 59m
+  🔍 Resolving member ID...
+  👤 Member ID: 9146835
+
+✅ Token saved to /root/NRL-Predict/config/.footytips_creds.json
+  [10:00:28] Pre-game check starting (Thu 10:00 AEST)
+  [10:00:29] Round 1
+  [10:00:29] 8/8 tips currently submitted
+  [10:00:29] No games in 30–90 min window — done
+2026-03-05 10:00:30 ── Pre-game check complete ──
+2026-03-05 10:30:01 ── Pre-game check starting ──
+2026-03-05 10:30:01 Checking ESPN token...
+✓ Token valid for 23h 30m
+2026-03-05 10:30:01 Token valid (84625s remaining) — no refresh needed
+  [10:30:02] Pre-game check starting (Thu 10:30 AEST)
+  [10:30:03] Round 1
+  [10:30:04] 8/8 tips currently submitted
+  [10:30:04] No games in 30–90 min window — done
+2026-03-05 10:30:04 ── Pre-game check complete ──
+2026-03-05 11:00:02 ── Pre-game check starting ──
+2026-03-05 11:00:02 Checking ESPN token...
+✓ Token valid for 23h 0m
+2026-03-05 11:00:02 Token valid (82824s remaining) — no refresh needed
+  [11:00:03] Pre-game check starting (Thu 11:00 AEST)
+  [11:00:04] Round 1
+  [11:00:05] 8/8 tips currently submitted
+  [11:00:05] No games in 30–90 min window — done
+2026-03-05 11:00:05 ── Pre-game check complete ──
+2026-03-05 11:30:01 ── Pre-game check starting ──
+2026-03-05 11:30:01 Checking ESPN token...
+✓ Token valid for 22h 30m
+2026-03-05 11:30:01 Token valid (81025s remaining) — no refresh needed
+  [11:30:02] Pre-game check starting (Thu 11:30 AEST)
+  [11:30:03] Round 1
+  [11:30:04] 8/8 tips currently submitted
+  [11:30:04] No games in 30–90 min window — done
+2026-03-05 11:30:04 ── Pre-game check complete ──
+2026-03-05 12:00:02 ── Pre-game check starting ──
+2026-03-05 12:00:02 Checking ESPN token...
+✓ Token valid for 22h 0m
+2026-03-05 12:00:03 Token valid (79224s remaining) — no refresh needed
+  [12:00:04] Pre-game check starting (Thu 12:00 AEST)
+  [12:00:05] Round 1
+  [12:00:05] 8/8 tips currently submitted
+  [12:00:05] No games in 30–90 min window — done
+2026-03-05 12:00:06 ── Pre-game check complete ──
+2026-03-05 12:30:01 ── Pre-game check starting ──
+2026-03-05 12:30:01 Checking ESPN token...
+✓ Token valid for 21h 30m
+2026-03-05 12:30:02 Token valid (77424s remaining) — no refresh needed
+  [12:30:03] Pre-game check starting (Thu 12:30 AEST)
+  [12:30:04] Round 1
+  [12:30:05] 8/8 tips currently submitted
+  [12:30:05] No games in 30–90 min window — done
+2026-03-05 12:30:05 ── Pre-game check complete ──
+2026-03-05 13:00:01 ── Pre-game check starting ──
+2026-03-05 13:00:02 Checking ESPN token...
+✓ Token valid for 21h 0m
+2026-03-05 13:00:02 Token valid (75624s remaining) — no refresh needed
+  [13:00:06] Pre-game check starting (Thu 13:00 AEST)
+  [13:00:06] Round 1
+  [13:00:07] 8/8 tips currently submitted
+  [13:00:07] No games in 30–90 min window — done
+2026-03-05 13:00:07 ── Pre-game check complete ──
+2026-03-05 13:30:02 ── Pre-game check starting ──
+2026-03-05 13:30:02 Checking ESPN token...
+✓ Token valid for 20h 30m
+2026-03-05 13:30:02 Token valid (73824s remaining) — no refresh needed
+  [13:30:03] Pre-game check starting (Thu 13:30 AEST)
+  [13:30:05] Round 1
+  [13:30:06] 8/8 tips currently submitted
+  [13:30:06] No games in 30–90 min window — done
+2026-03-05 13:30:06 ── Pre-game check complete ──
+2026-03-05 14:00:01 ── Pre-game check starting ──
+2026-03-05 14:00:01 Checking ESPN token...
+✓ Token valid for 20h 0m
+2026-03-05 14:00:01 Token valid (72025s remaining) — no refresh needed
+  [14:00:03] Pre-game check starting (Thu 14:00 AEST)
+  [14:00:04] Round 1
+  [14:00:05] 8/8 tips currently submitted
+  [14:00:05] No games in 30–90 min window — done
+2026-03-05 14:00:05 ── Pre-game check complete ──
+2026-03-05 14:30:01 ── Pre-game check starting ──
+2026-03-05 14:30:01 Checking ESPN token...
+✓ Token valid for 19h 30m
+2026-03-05 14:30:02 Token valid (70224s remaining) — no refresh needed
+  [14:30:03] Pre-game check starting (Thu 14:30 AEST)
+  [14:30:03] Round 1
+  [14:30:04] 8/8 tips currently submitted
+  [14:30:04] No games in 30–90 min window — done
+2026-03-05 14:30:04 ── Pre-game check complete ──
+2026-03-05 15:00:01 ── Pre-game check starting ──
+2026-03-05 15:00:01 Checking ESPN token...
+✓ Token valid for 19h 0m
+2026-03-05 15:00:01 Token valid (68425s remaining) — no refresh needed
+  [15:00:02] Pre-game check starting (Thu 15:00 AEST)
+  [15:00:03] Round 1
+  [15:00:04] 8/8 tips currently submitted
+  [15:00:04] No games in 30–90 min window — done
+2026-03-05 15:00:04 ── Pre-game check complete ──
+2026-03-05 15:30:01 ── Pre-game check starting ──
+2026-03-05 15:30:01 Checking ESPN token...
+✓ Token valid for 18h 30m
+2026-03-05 15:30:01 Token valid (66625s remaining) — no refresh needed
+  [15:30:02] Pre-game check starting (Thu 15:30 AEST)
+  [15:30:03] Round 1
+  [15:30:04] 8/8 tips currently submitted
+  [15:30:04] No games in 30–90 min window — done
+2026-03-05 15:30:04 ── Pre-game check complete ──
+2026-03-05 16:00:01 ── Pre-game check starting ──
+2026-03-05 16:00:01 Checking ESPN token...
+✓ Token valid for 18h 0m
+2026-03-05 16:00:01 Token valid (64825s remaining) — no refresh needed
+  [16:00:03] Pre-game check starting (Thu 16:00 AEST)
+  [16:00:03] Round 1
+  [16:00:04] 8/8 tips currently submitted
+  [16:00:04] No games in 30–90 min window — done
+2026-03-05 16:00:05 ── Pre-game check complete ──
+2026-03-05 16:30:01 ── Pre-game check starting ──
+2026-03-05 16:30:01 Checking ESPN token...
+✓ Token valid for 17h 30m
+2026-03-05 16:30:01 Token valid (63025s remaining) — no refresh needed
+  [16:30:02] Pre-game check starting (Thu 16:30 AEST)
+  [16:30:03] Round 1
+  [16:30:03] 8/8 tips currently submitted
+  [16:30:03] No games in 30–90 min window — done
+2026-03-05 16:30:04 ── Pre-game check complete ──
+2026-03-05 17:00:01 ── Pre-game check starting ──
+2026-03-05 17:00:01 Checking ESPN token...
+✓ Token valid for 17h 0m
+2026-03-05 17:00:01 Token valid (61225s remaining) — no refresh needed
+  [17:00:04] Pre-game check starting (Thu 17:00 AEST)
+  [17:00:05] Round 1
+  [17:00:05] 8/8 tips currently submitted
+  [17:00:05] No games in 30–90 min window — done
+2026-03-05 17:00:06 ── Pre-game check complete ──
+2026-03-05 17:30:01 ── Pre-game check starting ──
+2026-03-05 17:30:01 Checking ESPN token...
+✓ Token valid for 16h 30m
+2026-03-05 17:30:01 Token valid (59425s remaining) — no refresh needed
+  [17:30:02] Pre-game check starting (Thu 17:30 AEST)
+  [17:30:03] Round 1
+  [17:30:03] 8/8 tips currently submitted
+  [17:30:03] Games in window: Storm v Eels (07:00PM)
+  [17:30:03] Fetching fresh odds...
+  [Odds API] Quota: 11 used, 489 remaining
+  [17:30:05]   Got odds for 10 matches
+  [17:30:05] Checking lineups: Storm v Eels...
+  [17:30:11] Done — 1 games checked, 0 odds flips
+2026-03-05 17:30:11 ── Pre-game check complete ──
+2026-03-05 18:00:01 ── Pre-game check starting ──
+2026-03-05 18:00:01 Checking ESPN token...
+✓ Token valid for 16h 0m
+2026-03-05 18:00:01 Token valid (57625s remaining) — no refresh needed
+  [18:00:02] Pre-game check starting (Thu 18:00 AEST)
+  [18:00:04] Round 1
+  [18:00:05] 8/8 tips currently submitted
+  [18:00:05] Games in window: Storm v Eels (07:00PM)
+  [18:00:05] Fetching fresh odds...
+  [Odds API] Quota: 12 used, 488 remaining
+  [18:00:06]   Got odds for 10 matches
+  [18:00:06] Checking lineups: Storm v Eels...
+  [18:00:27] Done — 1 games checked, 0 odds flips
+2026-03-05 18:00:27 ── Pre-game check complete ──
+2026-03-05 18:30:01 ── Pre-game check starting ──
+2026-03-05 18:30:01 Checking ESPN token...
+✓ Token valid for 15h 30m
+2026-03-05 18:30:01 Token valid (55825s remaining) — no refresh needed
+  [18:30:02] Pre-game check starting (Thu 18:30 AEST)
+  [18:30:03] Round 1
+  [18:30:04] 8/8 tips currently submitted
+  [18:30:04] No games in 30–90 min window — done
+2026-03-05 18:30:04 ── Pre-game check complete ──
+2026-03-05 19:00:02 ── Pre-game check starting ──
+2026-03-05 19:00:02 Checking ESPN token...
+✓ Token valid for 15h 0m
+2026-03-05 19:00:02 Token valid (54024s remaining) — no refresh needed
+  [19:00:04] Pre-game check starting (Thu 19:00 AEST)
+  [19:00:05] Round 1
+  [19:00:06] 8/8 tips currently submitted
+  [19:00:06] No games in 30–90 min window — done
+2026-03-05 19:00:06 ── Pre-game check complete ──
+2026-03-05 19:30:01 ── Pre-game check starting ──
+2026-03-05 19:30:01 Checking ESPN token...
+✓ Token valid for 14h 30m
+2026-03-05 19:30:01 Token valid (52225s remaining) — no refresh needed
+  [19:30:02] Pre-game check starting (Thu 19:30 AEST)
+  [19:30:03] Round 1
+  [19:30:04] 8/8 tips currently submitted
+  [19:30:04] No games in 30–90 min window — done
+2026-03-05 19:30:04 ── Pre-game check complete ──
+2026-03-05 20:00:01 ── Pre-game check starting ──
+2026-03-05 20:00:01 Checking ESPN token...
+✓ Token valid for 14h 0m
+2026-03-05 20:00:02 Token valid (50424s remaining) — no refresh needed
+  [20:00:02] Pre-game check starting (Thu 20:00 AEST)
+  [20:00:03] Round 1
+  [20:00:04] 8/8 tips currently submitted
+  [20:00:04] No games in 30–90 min window — done
+2026-03-05 20:00:04 ── Pre-game check complete ──
+2026-03-05 20:30:01 ── Pre-game check starting ──
+2026-03-05 20:30:01 Checking ESPN token...
+✓ Token valid for 13h 30m
+2026-03-05 20:30:01 Token valid (48625s remaining) — no refresh needed
+  [20:30:02] Pre-game check starting (Thu 20:30 AEST)
+  [20:30:03] Round 1
+  [20:30:03] 8/8 tips currently submitted
+  [20:30:03] No games in 30–90 min window — done
+2026-03-05 20:30:03 ── Pre-game check complete ──
+2026-03-06 10:00:01 ── Pre-game check starting ──
+2026-03-06 10:00:01 Checking ESPN token...
+✓ Token valid for 0h 0m
+2026-03-06 10:00:02 Token expiring soon (24s) — refreshing...
+⚠ Token expiring soon (0m). Refreshing...
+
+  🌐 Navigating to ESPN Footytips...
+  ⏳ Waiting for OneID...
+  ✓ Token captured (silent refresh from saved session)
+  🔑 New token valid for 23h 59m
+  🔍 Resolving member ID...
+  👤 Member ID: 9146835
+
+✅ Token saved to /root/NRL-Predict/config/.footytips_creds.json
+  [10:00:32] Pre-game check starting (Fri 10:00 AEST)
+  [10:00:33] Round 1
+  [10:00:33] 8/8 tips currently submitted
+  [10:00:33] No games in 30–90 min window — done
+2026-03-06 10:00:33 ── Pre-game check complete ──
+2026-03-06 10:30:01 ── Pre-game check starting ──
+2026-03-06 10:30:01 Checking ESPN token...
+✓ Token valid for 23h 30m
+2026-03-06 10:30:01 Token valid (84628s remaining) — no refresh needed
+  [10:30:02] Pre-game check starting (Fri 10:30 AEST)
+  [10:30:03] Round 1
+  [10:30:03] 8/8 tips currently submitted
+  [10:30:03] No games in 30–90 min window — done
+2026-03-06 10:30:03 ── Pre-game check complete ──
+2026-03-06 11:00:01 ── Pre-game check starting ──
+2026-03-06 11:00:01 Checking ESPN token...
+✓ Token valid for 23h 0m
+2026-03-06 11:00:01 Token valid (82828s remaining) — no refresh needed
+  [11:00:02] Pre-game check starting (Fri 11:00 AEST)
+  [11:00:03] Round 1
+  [11:00:05] 8/8 tips currently submitted
+  [11:00:05] No games in 30–90 min window — done
+2026-03-06 11:00:05 ── Pre-game check complete ──
+2026-03-06 11:30:01 ── Pre-game check starting ──
+2026-03-06 11:30:01 Checking ESPN token...
+✓ Token valid for 22h 30m
+2026-03-06 11:30:01 Token valid (81028s remaining) — no refresh needed
+  [11:30:01] Pre-game check starting (Fri 11:30 AEST)
+  [11:30:02] Round 1
+  [11:30:08] 8/8 tips currently submitted
+  [11:30:08] No games in 30–90 min window — done
+2026-03-06 11:30:08 ── Pre-game check complete ──
+2026-03-06 12:00:01 ── Pre-game check starting ──
+2026-03-06 12:00:01 Checking ESPN token...
+✓ Token valid for 22h 0m
+2026-03-06 12:00:01 Token valid (79228s remaining) — no refresh needed
+  [12:00:04] Pre-game check starting (Fri 12:00 AEST)
+  [12:00:05] Round 1
+  [12:00:06] 8/8 tips currently submitted
+  [12:00:06] No games in 30–90 min window — done
+2026-03-06 12:00:06 ── Pre-game check complete ──
+2026-03-06 12:30:01 ── Pre-game check starting ──
+2026-03-06 12:30:01 Checking ESPN token...
+✓ Token valid for 21h 30m
+2026-03-06 12:30:01 Token valid (77428s remaining) — no refresh needed
+  [12:30:02] Pre-game check starting (Fri 12:30 AEST)
+  [12:30:03] Round 1
+  [12:30:03] 8/8 tips currently submitted
+  [12:30:03] No games in 30–90 min window — done
+2026-03-06 12:30:03 ── Pre-game check complete ──
+2026-03-06 13:00:01 ── Pre-game check starting ──
+2026-03-06 13:00:01 Checking ESPN token...
+✓ Token valid for 21h 0m
+2026-03-06 13:00:02 Token valid (75627s remaining) — no refresh needed
+  [13:00:03] Pre-game check starting (Fri 13:00 AEST)
+  [13:00:04] Round 1
+  [13:00:06] 8/8 tips currently submitted
+  [13:00:06] No games in 30–90 min window — done
+2026-03-06 13:00:06 ── Pre-game check complete ──
+2026-03-06 13:30:01 ── Pre-game check starting ──
+2026-03-06 13:30:01 Checking ESPN token...
+✓ Token valid for 20h 30m
+2026-03-06 13:30:01 Token valid (73828s remaining) — no refresh needed
+  [13:30:02] Pre-game check starting (Fri 13:30 AEST)
+  [13:30:03] Round 1
+  [13:30:04] 8/8 tips currently submitted
+  [13:30:04] No games in 30–90 min window — done
+2026-03-06 13:30:04 ── Pre-game check complete ──
+2026-03-06 14:00:01 ── Pre-game check starting ──
+2026-03-06 14:00:01 Checking ESPN token...
+✓ Token valid for 20h 0m
+2026-03-06 14:00:01 Token valid (72028s remaining) — no refresh needed
+  [14:00:03] Pre-game check starting (Fri 14:00 AEST)
+  [14:00:04] Round 1
+  [14:00:05] 8/8 tips currently submitted
+  [14:00:05] No games in 30–90 min window — done
+2026-03-06 14:00:05 ── Pre-game check complete ──
+2026-03-06 14:30:02 ── Pre-game check starting ──
+2026-03-06 14:30:02 Checking ESPN token...
+✓ Token valid for 19h 30m
+2026-03-06 14:30:02 Token valid (70227s remaining) — no refresh needed
+  [14:30:02] Pre-game check starting (Fri 14:30 AEST)
+  [14:30:03] Round 1
+  [14:30:04] 8/8 tips currently submitted
+  [14:30:04] No games in 30–90 min window — done
+2026-03-06 14:30:04 ── Pre-game check complete ──
+2026-03-06 15:00:02 ── Pre-game check starting ──
+2026-03-06 15:00:02 Checking ESPN token...
+✓ Token valid for 19h 0m
+2026-03-06 15:00:02 Token valid (68427s remaining) — no refresh needed
+  [15:00:03] Pre-game check starting (Fri 15:00 AEST)
+  [15:00:03] Round 1
+  [15:00:04] 8/8 tips currently submitted
+  [15:00:04] No games in 30–90 min window — done
+2026-03-06 15:00:04 ── Pre-game check complete ──
+2026-03-06 15:30:01 ── Pre-game check starting ──
+2026-03-06 15:30:01 Checking ESPN token...
+✓ Token valid for 18h 30m
+2026-03-06 15:30:01 Token valid (66628s remaining) — no refresh needed
+  [15:30:01] Pre-game check starting (Fri 15:30 AEST)
+  [15:30:02] Round 1
+  [15:30:03] 8/8 tips currently submitted
+  [15:30:03] Games in window: NZ Warriors v Roosters (05:00PM)
+  [15:30:03] Fetching fresh odds...
+  [Odds API] Quota: 13 used, 487 remaining
+  [15:30:04]   Got odds for 5 matches
+  [15:30:04] Checking lineups: NZ Warriors v Roosters...
+  [15:30:26] Done — 1 games checked, 0 odds flips
+2026-03-06 15:30:27 ── Pre-game check complete ──
+2026-03-06 16:00:01 ── Pre-game check starting ──
+2026-03-06 16:00:01 Checking ESPN token...
+✓ Token valid for 18h 0m
+2026-03-06 16:00:01 Token valid (64828s remaining) — no refresh needed
+  [16:00:04] Pre-game check starting (Fri 16:00 AEST)
+  [16:00:05] Round 1
+  [16:00:05] 8/8 tips currently submitted
+  [16:00:05] Games in window: NZ Warriors v Roosters (05:00PM)
+  [16:00:05] Fetching fresh odds...
+  [Odds API] Quota: 14 used, 486 remaining
+  [16:00:07]   Got odds for 5 matches
+  [16:00:07] Checking lineups: NZ Warriors v Roosters...
+  [16:00:27] Done — 1 games checked, 0 odds flips
+2026-03-06 16:00:27 ── Pre-game check complete ──
+2026-03-06 16:30:01 ── Pre-game check starting ──
+2026-03-06 16:30:01 Checking ESPN token...
+✓ Token valid for 17h 30m
+2026-03-06 16:30:01 Token valid (63028s remaining) — no refresh needed
+  [16:30:02] Pre-game check starting (Fri 16:30 AEST)
+  [16:30:03] Round 1
+  [16:30:04] 8/8 tips currently submitted
+  [16:30:04] No games in 30–90 min window — done
+2026-03-06 16:30:05 ── Pre-game check complete ──
+2026-03-06 17:00:01 ── Pre-game check starting ──
+2026-03-06 17:00:01 Checking ESPN token...
+✓ Token valid for 17h 0m
+2026-03-06 17:00:01 Token valid (61228s remaining) — no refresh needed
+  [17:00:02] Pre-game check starting (Fri 17:00 AEST)
+  [17:00:03] Round 1
+  [17:00:04] 8/8 tips currently submitted
+  [17:00:04] No games in 30–90 min window — done
+2026-03-06 17:00:04 ── Pre-game check complete ──
+2026-03-06 17:30:02 ── Pre-game check starting ──
+2026-03-06 17:30:02 Checking ESPN token...
+✓ Token valid for 16h 30m
+2026-03-06 17:30:02 Token valid (59427s remaining) — no refresh needed
+  [17:30:03] Pre-game check starting (Fri 17:30 AEST)
+  [17:30:03] Round 1
+  [17:30:04] 8/8 tips currently submitted
+  [17:30:04] Games in window: Broncos v Panthers (07:00PM)
+  [17:30:04] Fetching fresh odds...
+  [Odds API] Quota: 15 used, 485 remaining
+  [17:30:05]   Got odds for 5 matches
+  [17:30:05] Checking lineups: Broncos v Panthers...
+  [17:30:13] Done — 1 games checked, 0 odds flips
+2026-03-06 17:30:13 ── Pre-game check complete ──
+2026-03-06 18:00:02 ── Pre-game check starting ──
+2026-03-06 18:00:02 Checking ESPN token...
+✓ Token valid for 16h 0m
+2026-03-06 18:00:02 Token valid (57627s remaining) — no refresh needed
+  [18:00:03] Pre-game check starting (Fri 18:00 AEST)
+  [18:00:04] Round 1
+  [18:00:05] 8/8 tips currently submitted
+  [18:00:05] Games in window: Broncos v Panthers (07:00PM)
+  [18:00:05] Fetching fresh odds...
+  [Odds API] Quota: 16 used, 484 remaining
+  [18:00:07]   Got odds for 8 matches
+  [18:00:07] Checking lineups: Broncos v Panthers...
+  [18:00:27] Done — 1 games checked, 0 odds flips
+2026-03-06 18:00:27 ── Pre-game check complete ──
+2026-03-06 18:30:01 ── Pre-game check starting ──
+2026-03-06 18:30:01 Checking ESPN token...
+✓ Token valid for 15h 30m
+2026-03-06 18:30:02 Token valid (55827s remaining) — no refresh needed
+  [18:30:03] Pre-game check starting (Fri 18:30 AEST)
+  [18:30:03] Round 1
+  [18:30:04] 8/8 tips currently submitted
+  [18:30:04] No games in 30–90 min window — done
+2026-03-06 18:30:04 ── Pre-game check complete ──
+2026-03-06 19:00:01 ── Pre-game check starting ──
+2026-03-06 19:00:01 Checking ESPN token...
+✓ Token valid for 15h 0m
+2026-03-06 19:00:02 Token valid (54027s remaining) — no refresh needed
+  [19:00:03] Pre-game check starting (Fri 19:00 AEST)
+  [19:00:04] Round 1
+  [19:00:05] 8/8 tips currently submitted
+  [19:00:05] No games in 30–90 min window — done
+2026-03-06 19:00:05 ── Pre-game check complete ──
+2026-03-06 19:30:01 ── Pre-game check starting ──
+2026-03-06 19:30:01 Checking ESPN token...
+✓ Token valid for 14h 30m
+2026-03-06 19:30:01 Token valid (52228s remaining) — no refresh needed
+  [19:30:02] Pre-game check starting (Fri 19:30 AEST)
+  [19:30:03] Round 1
+  [19:30:03] 8/8 tips currently submitted
+  [19:30:03] No games in 30–90 min window — done
+2026-03-06 19:30:04 ── Pre-game check complete ──
+2026-03-06 20:00:01 ── Pre-game check starting ──
+2026-03-06 20:00:01 Checking ESPN token...
+✓ Token valid for 14h 0m
+2026-03-06 20:00:01 Token valid (50428s remaining) — no refresh needed
+  [20:00:03] Pre-game check starting (Fri 20:00 AEST)
+  [20:00:04] Round 1
+  [20:00:05] 8/8 tips currently submitted
+  [20:00:05] No games in 30–90 min window — done
+2026-03-06 20:00:05 ── Pre-game check complete ──
+2026-03-06 20:30:01 ── Pre-game check starting ──
+2026-03-06 20:30:01 Checking ESPN token...
+✓ Token valid for 13h 30m
+2026-03-06 20:30:01 Token valid (48628s remaining) — no refresh needed
+  [20:30:02] Pre-game check starting (Fri 20:30 AEST)
+  [20:30:03] Round 1
+  [20:30:04] 8/8 tips currently submitted
+  [20:30:04] No games in 30–90 min window — done
+2026-03-06 20:30:04 ── Pre-game check complete ──
+2026-03-07 10:00:02 ── Pre-game check starting ──
+2026-03-07 10:00:02 Checking ESPN token...
+✓ Token valid for 0h 0m
+2026-03-07 10:00:02 Token expiring soon (27s) — refreshing...
+⚠ Token expiring soon (0m). Refreshing...
+
+  🌐 Navigating to ESPN Footytips...
+  ⏳ Waiting for OneID...
+  ✓ Token captured (silent refresh from saved session)
+  🔑 New token valid for -1h 59m
+  🔍 Resolving member ID...
+  👤 Member ID: 9146835
+
+✅ Token saved to /root/NRL-Predict/config/.footytips_creds.json
+  [10:00:32] Pre-game check starting (Sat 10:00 AEST)
+  [10:00:33] Round 1
+  [10:00:33] 8/8 tips currently submitted
+  [10:00:33] No games in 30–90 min window — done
+2026-03-07 10:00:33 ── Pre-game check complete ──
+2026-03-07 10:30:01 ── Pre-game check starting ──
+2026-03-07 10:30:01 Checking ESPN token...
+✗ Token expired or missing
+2026-03-07 10:30:02 Token expired/missing — refreshing...
+⚠ Token expired or missing. Refreshing...
+
+  🌐 Navigating to ESPN Footytips...
+  ⏳ Waiting for OneID...
+  ✓ Token captured (silent refresh from saved session)
+  🔑 New token valid for 23h 30m
+  🔍 Resolving member ID...
+  👤 Member ID: 9146835
+
+✅ Token saved to /root/NRL-Predict/config/.footytips_creds.json
+  [10:30:15] Pre-game check starting (Sat 10:30 AEST)
+  [10:30:16] Round 1
+  [10:30:16] 8/8 tips currently submitted
+  [10:30:16] No games in 30–90 min window — done
+2026-03-07 10:30:16 ── Pre-game check complete ──
+2026-03-07 11:00:01 ── Pre-game check starting ──
+2026-03-07 11:00:01 Checking ESPN token...
+✓ Token valid for 23h 0m
+2026-03-07 11:00:02 Token valid (82827s remaining) — no refresh needed
+  [11:00:03] Pre-game check starting (Sat 11:00 AEST)
+  [11:00:03] Round 1
+  [11:00:04] 8/8 tips currently submitted
+  [11:00:04] No games in 30–90 min window — done
+2026-03-07 11:00:04 ── Pre-game check complete ──
+2026-03-07 11:30:01 ── Pre-game check starting ──
+2026-03-07 11:30:01 Checking ESPN token...
+✓ Token valid for 22h 30m
+2026-03-07 11:30:01 Token valid (81028s remaining) — no refresh needed
+  [11:30:02] Pre-game check starting (Sat 11:30 AEST)
+  [11:30:03] Round 1
+  [11:30:04] 8/8 tips currently submitted
+  [11:30:04] No games in 30–90 min window — done
+2026-03-07 11:30:04 ── Pre-game check complete ──
+2026-03-07 12:00:01 ── Pre-game check starting ──
+2026-03-07 12:00:01 Checking ESPN token...
+✓ Token valid for 22h 0m
+2026-03-07 12:00:01 Token valid (79228s remaining) — no refresh needed
+  [12:00:02] Pre-game check starting (Sat 12:00 AEST)
+  [12:00:03] Round 1
+  [12:00:05] 8/8 tips currently submitted
+  [12:00:05] No games in 30–90 min window — done
+2026-03-07 12:00:05 ── Pre-game check complete ──
+2026-03-07 12:30:01 ── Pre-game check starting ──
+2026-03-07 12:30:01 Checking ESPN token...
+✓ Token valid for 21h 30m
+2026-03-07 12:30:01 Token valid (77428s remaining) — no refresh needed
+  [12:30:02] Pre-game check starting (Sat 12:30 AEST)
+  [12:30:02] Round 1
+  [12:30:03] 8/8 tips currently submitted
+  [12:30:03] No games in 30–90 min window — done
+2026-03-07 12:30:03 ── Pre-game check complete ──
+2026-03-07 13:00:02 ── Pre-game check starting ──
+2026-03-07 13:00:02 Checking ESPN token...
+✓ Token valid for 21h 0m
+2026-03-07 13:00:02 Token valid (75627s remaining) — no refresh needed
+  [13:00:05] Pre-game check starting (Sat 13:00 AEST)
+  [13:00:05] Round 1
+  [13:00:06] 8/8 tips currently submitted
+  [13:00:06] No games in 30–90 min window — done
+2026-03-07 13:00:06 ── Pre-game check complete ──
+2026-03-07 13:30:01 ── Pre-game check starting ──
+2026-03-07 13:30:01 Checking ESPN token...
+✓ Token valid for 20h 30m
+2026-03-07 13:30:02 Token valid (73827s remaining) — no refresh needed
+  [13:30:03] Pre-game check starting (Sat 13:30 AEST)
+  [13:30:04] Round 1
+  [13:30:04] 8/8 tips currently submitted
+  [13:30:04] No games in 30–90 min window — done
+2026-03-07 13:30:05 ── Pre-game check complete ──
+2026-03-07 14:00:02 ── Pre-game check starting ──
+2026-03-07 14:00:02 Checking ESPN token...
+✓ Token valid for 20h 0m
+2026-03-07 14:00:02 Token valid (72027s remaining) — no refresh needed
+  [14:00:03] Pre-game check starting (Sat 14:00 AEST)
+  [14:00:04] Round 1
+  [14:00:04] 8/8 tips currently submitted
+  [14:00:04] No games in 30–90 min window — done
+2026-03-07 14:00:05 ── Pre-game check complete ──
+2026-03-07 14:30:01 ── Pre-game check starting ──
+2026-03-07 14:30:01 Checking ESPN token...
+✓ Token valid for 19h 30m
+2026-03-07 14:30:01 Token valid (70228s remaining) — no refresh needed
+  [14:30:02] Pre-game check starting (Sat 14:30 AEST)
+  [14:30:03] Round 1
+  [14:30:04] 8/8 tips currently submitted
+  [14:30:04] No games in 30–90 min window — done
+2026-03-07 14:30:04 ── Pre-game check complete ──
+2026-03-07 15:00:02 ── Pre-game check starting ──
+2026-03-07 15:00:02 Checking ESPN token...
+✓ Token valid for 19h 0m
+2026-03-07 15:00:02 Token valid (68427s remaining) — no refresh needed
+  [15:00:03] Pre-game check starting (Sat 15:00 AEST)
+  [15:00:04] Round 1
+  [15:00:04] 8/8 tips currently submitted
+  [15:00:04] Games in window: Sharks v Titans (04:30PM)
+  [15:00:04] Fetching fresh odds...
+  [Odds API] Quota: 17 used, 483 remaining
+  [15:00:07]   Got odds for 9 matches
+  [15:00:07] Checking lineups: Sharks v Titans...
+  [15:00:28] Done — 1 games checked, 0 odds flips
+2026-03-07 15:00:28 ── Pre-game check complete ──
+2026-03-07 15:30:01 ── Pre-game check starting ──
+2026-03-07 15:30:01 Checking ESPN token...
+✓ Token valid for 18h 30m
+2026-03-07 15:30:01 Token valid (66628s remaining) — no refresh needed
+  [15:30:02] Pre-game check starting (Sat 15:30 AEST)
+  [15:30:03] Round 1
+  [15:30:04] 8/8 tips currently submitted
+  [15:30:04] Games in window: Sharks v Titans (04:30PM)
+  [15:30:04] Fetching fresh odds...
+  [Odds API] Quota: 18 used, 482 remaining
+  [15:30:05]   Got odds for 9 matches
+  [15:30:05] Checking lineups: Sharks v Titans...
+  [15:30:26] Done — 1 games checked, 0 odds flips
+2026-03-07 15:30:26 ── Pre-game check complete ──
+2026-03-07 16:00:02 ── Pre-game check starting ──
+2026-03-07 16:00:02 Checking ESPN token...
+✓ Token valid for 18h 0m
+2026-03-07 16:00:02 Token valid (64827s remaining) — no refresh needed
+  [16:00:05] Pre-game check starting (Sat 16:00 AEST)
+  [16:00:05] Round 1
+  [16:00:06] 8/8 tips currently submitted
+  [16:00:06] No games in 30–90 min window — done
+2026-03-07 16:00:06 ── Pre-game check complete ──
+2026-03-07 16:30:01 ── Pre-game check starting ──
+2026-03-07 16:30:01 Checking ESPN token...
+✓ Token valid for 17h 30m
+2026-03-07 16:30:01 Token valid (63028s remaining) — no refresh needed
+  [16:30:02] Pre-game check starting (Sat 16:30 AEST)
+  [16:30:03] Round 1
+  [16:30:04] 8/8 tips currently submitted
+  [16:30:04] No games in 30–90 min window — done
+2026-03-07 16:30:04 ── Pre-game check complete ──
+2026-03-07 17:00:01 ── Pre-game check starting ──
+2026-03-07 17:00:01 Checking ESPN token...
+✓ Token valid for 17h 0m
+2026-03-07 17:00:01 Token valid (61228s remaining) — no refresh needed
+  [17:00:03] Pre-game check starting (Sat 17:00 AEST)
+  [17:00:04] Round 1
+  [17:00:05] 8/8 tips currently submitted
+  [17:00:05] No games in 30–90 min window — done
+2026-03-07 17:00:05 ── Pre-game check complete ──
+2026-03-07 17:30:02 ── Pre-game check starting ──
+2026-03-07 17:30:02 Checking ESPN token...
+✓ Token valid for 16h 30m
+2026-03-07 17:30:02 Token valid (59427s remaining) — no refresh needed
+  [17:30:02] Pre-game check starting (Sat 17:30 AEST)
+  [17:30:03] Round 1
+  [17:30:04] 8/8 tips currently submitted
+  [17:30:04] Games in window: Raiders v Sea Eagles (06:35PM)
+  [17:30:04] Fetching fresh odds...
+  [Odds API] Quota: 19 used, 481 remaining
+  [17:30:05]   Got odds for 8 matches
+  [17:30:05] Checking lineups: Raiders v Sea Eagles...
+  [17:30:28] Done — 1 games checked, 0 odds flips
+2026-03-07 17:30:28 ── Pre-game check complete ──
+2026-03-07 18:00:01 ── Pre-game check starting ──
+2026-03-07 18:00:01 Checking ESPN token...
+✓ Token valid for 16h 0m
+2026-03-07 18:00:01 Token valid (57628s remaining) — no refresh needed
+  [18:00:02] Pre-game check starting (Sat 18:00 AEST)
+  [18:00:03] Round 1
+  [18:00:04] 8/8 tips currently submitted
+  [18:00:04] Games in window: Raiders v Sea Eagles (06:35PM)
+  [18:00:04] Fetching fresh odds...
+  [Odds API] Quota: 20 used, 480 remaining
+  [18:00:06]   Got odds for 8 matches
+  [18:00:06] Checking lineups: Raiders v Sea Eagles...
+  [18:00:26] Done — 1 games checked, 0 odds flips
+2026-03-07 18:00:26 ── Pre-game check complete ──
+2026-03-07 18:30:01 ── Pre-game check starting ──
+2026-03-07 18:30:01 Checking ESPN token...
+✓ Token valid for 15h 30m
+2026-03-07 18:30:01 Token valid (55828s remaining) — no refresh needed
+  [18:30:02] Pre-game check starting (Sat 18:30 AEST)
+  [18:30:03] Round 1
+  [18:30:04] 8/8 tips currently submitted
+  [18:30:04] No games in 30–90 min window — done
+2026-03-07 18:30:04 ── Pre-game check complete ──
+2026-03-07 19:00:01 ── Pre-game check starting ──
+2026-03-07 19:00:01 Checking ESPN token...
+✓ Token valid for 15h 0m
+2026-03-07 19:00:01 Token valid (54028s remaining) — no refresh needed
+  [19:00:02] Pre-game check starting (Sat 19:00 AEST)
+  [19:00:02] Round 1
+  [19:00:03] 8/8 tips currently submitted
+  [19:00:03] No games in 30–90 min window — done
+2026-03-07 19:00:03 ── Pre-game check complete ──
+2026-03-07 19:30:01 ── Pre-game check starting ──
+2026-03-07 19:30:01 Checking ESPN token...
+✓ Token valid for 14h 30m
+2026-03-07 19:30:01 Token valid (52228s remaining) — no refresh needed
+  [19:30:02] Pre-game check starting (Sat 19:30 AEST)
+  [19:30:03] Round 1
+  [19:30:04] 8/8 tips currently submitted
+  [19:30:04] No games in 30–90 min window — done
+2026-03-07 19:30:04 ── Pre-game check complete ──
+2026-03-07 20:00:01 ── Pre-game check starting ──
+2026-03-07 20:00:01 Checking ESPN token...
+✓ Token valid for 14h 0m
+2026-03-07 20:00:01 Token valid (50428s remaining) — no refresh needed
+  [20:00:02] Pre-game check starting (Sat 20:00 AEST)
+  [20:00:02] Round 1
+  [20:00:03] 8/8 tips currently submitted
+  [20:00:03] No games in 30–90 min window — done
+2026-03-07 20:00:03 ── Pre-game check complete ──
+2026-03-07 20:30:01 ── Pre-game check starting ──
+2026-03-07 20:30:01 Checking ESPN token...
+✓ Token valid for 13h 30m
+2026-03-07 20:30:01 Token valid (48628s remaining) — no refresh needed
+  [20:30:02] Pre-game check starting (Sat 20:30 AEST)
+  [20:30:03] Round 1
+  [20:30:03] 8/8 tips currently submitted
+  [20:30:03] No games in 30–90 min window — done
+2026-03-07 20:30:03 ── Pre-game check complete ──
+2026-03-08 10:00:02 ── Pre-game check starting ──
+2026-03-08 10:00:02 Checking ESPN token...
+✓ Token valid for 0h 0m
+2026-03-08 10:00:02 Token expiring soon (27s) — refreshing...
+⚠ Token expiring soon (0m). Refreshing...
+
+  🌐 Navigating to ESPN Footytips...
+  ⏳ Waiting for OneID...
+  ✓ Token captured (silent refresh from saved session)
+  🔑 New token valid for 23h 59m
+  🔍 Resolving member ID...
+  👤 Member ID: 9146835
+
+✅ Token saved to /root/NRL-Predict/config/.footytips_creds.json
+  [10:00:40] Pre-game check starting (Sun 10:00 AEST)
+  [10:00:40] Round 1
+  [10:00:41] 8/8 tips currently submitted
+  [10:00:41] No games in 30–90 min window — done
+2026-03-08 10:00:41 ── Pre-game check complete ──
+2026-03-08 10:30:01 ── Pre-game check starting ──
+2026-03-08 10:30:01 Checking ESPN token...
+✓ Token valid for 23h 30m
+2026-03-08 10:30:01 Token valid (84635s remaining) — no refresh needed
+  [10:30:02] Pre-game check starting (Sun 10:30 AEST)
+  [10:30:03] Round 1
+  [10:30:03] 8/8 tips currently submitted
+  [10:30:03] No games in 30–90 min window — done
+2026-03-08 10:30:03 ── Pre-game check complete ──
+2026-03-08 11:00:01 ── Pre-game check starting ──
+2026-03-08 11:00:01 Checking ESPN token...
+✓ Token valid for 23h 0m
+2026-03-08 11:00:01 Token valid (82835s remaining) — no refresh needed
+  [11:00:02] Pre-game check starting (Sun 11:00 AEST)
+  [11:00:04] Round 1
+  [11:00:04] 8/8 tips currently submitted
+  [11:00:04] No games in 30–90 min window — done
+2026-03-08 11:00:05 ── Pre-game check complete ──
+2026-03-08 11:30:01 ── Pre-game check starting ──
+2026-03-08 11:30:01 Checking ESPN token...
+✓ Token valid for 22h 30m
+2026-03-08 11:30:01 Token valid (81035s remaining) — no refresh needed
+  [11:30:02] Pre-game check starting (Sun 11:30 AEST)
+  [11:30:04] Round 1
+  [11:30:05] 8/8 tips currently submitted
+  [11:30:05] No games in 30–90 min window — done
+2026-03-08 11:30:05 ── Pre-game check complete ──
+2026-03-08 12:00:01 ── Pre-game check starting ──
+2026-03-08 12:00:01 Checking ESPN token...
+✓ Token valid for 22h 0m
+2026-03-08 12:00:02 Token valid (79234s remaining) — no refresh needed
+  [12:00:03] Pre-game check starting (Sun 12:00 AEST)
+  [12:00:05] Round 1
+  [12:00:07] 8/8 tips currently submitted
+  [12:00:07] No games in 30–90 min window — done
+2026-03-08 12:00:07 ── Pre-game check complete ──
+2026-03-08 12:30:01 ── Pre-game check starting ──
+2026-03-08 12:30:01 Checking ESPN token...
+✓ Token valid for 21h 30m
+2026-03-08 12:30:01 Token valid (77435s remaining) — no refresh needed
+  [12:30:02] Pre-game check starting (Sun 12:30 AEST)
+  [12:30:03] Round 1
+  [12:30:04] 8/8 tips currently submitted
+  [12:30:04] No games in 30–90 min window — done
+2026-03-08 12:30:04 ── Pre-game check complete ──
+2026-03-08 13:00:01 ── Pre-game check starting ──
+2026-03-08 13:00:01 Checking ESPN token...
+✓ Token valid for 21h 0m
+2026-03-08 13:00:02 Token valid (75634s remaining) — no refresh needed
+  [13:00:05] Pre-game check starting (Sun 13:00 AEST)
+  [13:00:06] Round 1
+  [13:00:07] 8/8 tips currently submitted
+  [13:00:07] No games in 30–90 min window — done
+2026-03-08 13:00:07 ── Pre-game check complete ──
+2026-03-08 13:30:01 ── Pre-game check starting ──
+2026-03-08 13:30:01 Checking ESPN token...
+✓ Token valid for 20h 30m
+2026-03-08 13:30:01 Token valid (73835s remaining) — no refresh needed
+  [13:30:02] Pre-game check starting (Sun 13:30 AEST)
+  [13:30:02] Round 1
+  [13:30:03] 8/8 tips currently submitted
+  [13:30:03] No games in 30–90 min window — done
+2026-03-08 13:30:03 ── Pre-game check complete ──
+2026-03-08 14:00:01 ── Pre-game check starting ──
+2026-03-08 14:00:01 Checking ESPN token...
+✓ Token valid for 20h 0m
+2026-03-08 14:00:02 Token valid (72034s remaining) — no refresh needed
+  [14:00:03] Pre-game check starting (Sun 14:00 AEST)
+  [14:00:04] Round 1
+  [14:00:05] 8/8 tips currently submitted
+  [14:00:05] Games in window: Dolphins v Rabbitohs (03:05PM)
+  [14:00:05] Fetching fresh odds...
+  [Odds API] Quota: 21 used, 479 remaining
+  [14:00:07]   Got odds for 8 matches
+  [14:00:07]   📊 Odds moved +19.4% for Dolphins v Rabbitohs — tip holds
+  [14:00:07] Checking lineups: Dolphins v Rabbitohs...
+  [14:00:29] Done — 1 games checked, 0 odds flips
+2026-03-08 14:00:29 ── Pre-game check complete ──
+2026-03-08 14:30:02 ── Pre-game check starting ──
+2026-03-08 14:30:02 Checking ESPN token...
+✓ Token valid for 19h 30m
+2026-03-08 14:30:02 Token valid (70234s remaining) — no refresh needed
+  [14:30:03] Pre-game check starting (Sun 14:30 AEST)
+  [14:30:04] Round 1
+  [14:30:04] 8/8 tips currently submitted
+  [14:30:04] Games in window: Dolphins v Rabbitohs (03:05PM)
+  [14:30:04] Fetching fresh odds...
+  [Odds API] Quota: 22 used, 478 remaining
+  [14:30:05]   Got odds for 8 matches
+  [14:30:05]   📊 Odds moved +19.4% for Dolphins v Rabbitohs — tip holds
+  [14:30:05] Checking lineups: Dolphins v Rabbitohs...
+  [14:30:17] Done — 1 games checked, 0 odds flips
+2026-03-08 14:30:17 ── Pre-game check complete ──
+2026-03-08 15:00:01 ── Pre-game check starting ──
+2026-03-08 15:00:01 Checking ESPN token...
+✓ Token valid for 19h 0m
+2026-03-08 15:00:01 Token valid (68435s remaining) — no refresh needed
+  [15:00:02] Pre-game check starting (Sun 15:00 AEST)
+  [15:00:03] Round 1
+  [15:00:04] 8/8 tips currently submitted
+  [15:00:04] No games in 30–90 min window — done
+2026-03-08 15:00:04 ── Pre-game check complete ──
+2026-03-08 15:30:01 ── Pre-game check starting ──
+2026-03-08 15:30:01 Checking ESPN token...
+✓ Token valid for 18h 30m
+2026-03-08 15:30:01 Token valid (66635s remaining) — no refresh needed
+  [15:30:02] Pre-game check starting (Sun 15:30 AEST)
+  [15:30:02] Round 1
+  [15:30:03] 8/8 tips currently submitted
+  [15:30:03] No games in 30–90 min window — done
+2026-03-08 15:30:03 ── Pre-game check complete ──
+2026-03-08 16:00:01 ── Pre-game check starting ──
+2026-03-08 16:00:01 Checking ESPN token...
+✓ Token valid for 18h 0m
+2026-03-08 16:00:02 Token valid (64834s remaining) — no refresh needed
+  [16:00:03] Pre-game check starting (Sun 16:00 AEST)
+  [16:00:04] Round 1
+  [16:00:05] 8/8 tips currently submitted
+  [16:00:05] No games in 30–90 min window — done
+2026-03-08 16:00:05 ── Pre-game check complete ──
+2026-03-08 16:30:01 ── Pre-game check starting ──
+2026-03-08 16:30:01 Checking ESPN token...
+✓ Token valid for 17h 30m
+2026-03-08 16:30:01 Token valid (63035s remaining) — no refresh needed
+  [16:30:02] Pre-game check starting (Sun 16:30 AEST)
+  [16:30:02] Round 1
+  [16:30:03] 8/8 tips currently submitted
+  [16:30:03] No games in 30–90 min window — done
+2026-03-08 16:30:03 ── Pre-game check complete ──
+2026-03-08 17:00:01 ── Pre-game check starting ──
+2026-03-08 17:00:01 Checking ESPN token...
+✓ Token valid for 17h 0m
+2026-03-08 17:00:02 Token valid (61234s remaining) — no refresh needed
+  [17:00:02] Pre-game check starting (Sun 17:00 AEST)
+  [17:00:03] Round 1
+  [17:00:03] 8/8 tips currently submitted
+  [17:00:03] No games in 30–90 min window — done
+2026-03-08 17:00:04 ── Pre-game check complete ──
+2026-03-08 17:30:01 ── Pre-game check starting ──
+2026-03-08 17:30:01 Checking ESPN token...
+✓ Token valid for 16h 30m
+2026-03-08 17:30:01 Token valid (59435s remaining) — no refresh needed
+  [17:30:02] Pre-game check starting (Sun 17:30 AEST)
+  [17:30:03] Round 1
+  [17:30:04] 8/8 tips currently submitted
+  [17:30:04] No games in 30–90 min window — done
+2026-03-08 17:30:04 ── Pre-game check complete ──
+2026-03-08 18:00:01 ── Pre-game check starting ──
+2026-03-08 18:00:02 Checking ESPN token...
+✓ Token valid for 16h 0m
+2026-03-08 18:00:02 Token valid (57634s remaining) — no refresh needed
+  [18:00:04] Pre-game check starting (Sun 18:00 AEST)
+  [18:00:05] Round 1
+  [18:00:05] 8/8 tips currently submitted
+  [18:00:05] No games in 30–90 min window — done
+2026-03-08 18:00:05 ── Pre-game check complete ──
+2026-03-08 18:30:01 ── Pre-game check starting ──
+2026-03-08 18:30:01 Checking ESPN token...
+✓ Token valid for 15h 30m
+2026-03-08 18:30:02 Token valid (55834s remaining) — no refresh needed
+  [18:30:03] Pre-game check starting (Sun 18:30 AEST)
+  [18:30:03] Round 1
+  [18:30:04] 8/8 tips currently submitted
+  [18:30:04] No games in 30–90 min window — done
+2026-03-08 18:30:04 ── Pre-game check complete ──
+2026-03-08 19:00:01 ── Pre-game check starting ──
+2026-03-08 19:00:01 Checking ESPN token...
+✓ Token valid for 15h 0m
+2026-03-08 19:00:02 Token valid (54034s remaining) — no refresh needed
+  [19:00:03] Pre-game check starting (Sun 19:00 AEST)
+  [19:00:04] Round 1
+  [19:00:05] 8/8 tips currently submitted
+  [19:00:05] No games in 30–90 min window — done
+2026-03-08 19:00:05 ── Pre-game check complete ──
+2026-03-08 19:30:01 ── Pre-game check starting ──
+2026-03-08 19:30:01 Checking ESPN token...
+✓ Token valid for 14h 30m
+2026-03-08 19:30:01 Token valid (52235s remaining) — no refresh needed
+  [19:30:02] Pre-game check starting (Sun 19:30 AEST)
+  [19:30:03] Round 1
+  [19:30:04] 8/8 tips currently submitted
+  [19:30:04] No games in 30–90 min window — done
+2026-03-08 19:30:04 ── Pre-game check complete ──
+2026-03-08 20:00:02 ── Pre-game check starting ──
+2026-03-08 20:00:02 Checking ESPN token...
+✓ Token valid for 14h 0m
+2026-03-08 20:00:02 Token valid (50434s remaining) — no refresh needed
+  [20:00:04] Pre-game check starting (Sun 20:00 AEST)
+  [20:00:04] Round 1
+  [20:00:05] 8/8 tips currently submitted
+  [20:00:05] No games in 30–90 min window — done
+2026-03-08 20:00:05 ── Pre-game check complete ──
+2026-03-08 20:30:02 ── Pre-game check starting ──
+2026-03-08 20:30:02 Checking ESPN token...
+✓ Token valid for 13h 30m
+2026-03-08 20:30:02 Token valid (48634s remaining) — no refresh needed
+  [20:30:03] Pre-game check starting (Sun 20:30 AEST)
+  [20:30:03] Round 1
+  [20:30:04] 8/8 tips currently submitted
+  [20:30:04] No games in 30–90 min window — done
+2026-03-08 20:30:04 ── Pre-game check complete ──

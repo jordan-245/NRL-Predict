@@ -6,3 +6,35 @@
   ERROR: Could not auto-detect last round.
   Use --round N to specify.
 2026-02-26 23:28:06 ── NRL refresh FAILED ──
+2026-03-02 20:00:01 ── NRL refresh starting ──
+============================================================
+  NRL Weekly Data Refresh — 2026
+============================================================
+
+  ERROR: Could not auto-detect last round.
+  Use --round N to specify.
+2026-03-02 20:00:01 ── NRL refresh FAILED ──
+2026-03-09 20:00:01 ── NRL refresh starting ──
+============================================================
+  NRL Weekly Data Refresh — 2026
+============================================================
+
+  Auto-detected last round: 1
+
+  STEP 1: Scraping Round 1 of 2026 from RLP...
+Traceback (most recent call last):
+  File "/root/NRL-Predict/refresh_week.py", line 364, in <module>
+    main()
+  File "/root/NRL-Predict/refresh_week.py", line 343, in main
+    new_matches, new_ladders = step1_scrape_round(year, round_num)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/NRL-Predict/refresh_week.py", line 138, in step1_scrape_round
+    matches = parse_round_summary(html, year=year, round_id=round_num)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/NRL-Predict/scraping/rlp_match_parser.py", line 693, in parse_round_summary
+    soup = BeautifulSoup(html, "lxml")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/bs4/__init__.py", line 366, in __init__
+    raise FeatureNotFound(
+bs4.exceptions.FeatureNotFound: Couldn't find a tree builder with the features you requested: lxml. Do you need to install a parser library?
+2026-03-09 20:00:06 ── NRL refresh FAILED ──

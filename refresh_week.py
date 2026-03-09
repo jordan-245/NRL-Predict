@@ -148,6 +148,53 @@ def step1_scrape_round(year: int, round_num: int) -> tuple[list[dict], list[dict
     return matches, ladders
 
 
+def step_scrape_match_stats(year: int, round_num: int):
+    """Scrape per-game team stats from NRL.com API for the just-completed round.
+
+    Fetches completion rate, line breaks, tackle breaks, errors, etc. for
+    all matches in the round and appends them to match_stats.parquet.
+    Idempotent: removes any existing rows for this year+round before saving.
+    """
+    print(f"\n  STEP 1b: Scraping match stats for Round {round_num} of {year}...")
+
+    try:
+        from scraping.nrl_match_stats import fetch_round_match_stats
+    except ImportError as e:
+        print(f"    SKIPPED: could not import fetch_round_match_stats — {e}")
+        return
+
+    try:
+        new_stats = fetch_round_match_stats(year, round_num)
+    except Exception as e:
+        print(f"    ERROR fetching match stats: {e}")
+        return
+
+    if not new_stats:
+        print(f"    No stats returned for Round {round_num} — skipping")
+        return
+
+    new_df = pd.DataFrame(new_stats)
+    if new_df.empty:
+        print(f"    Empty stats DataFrame — skipping")
+        return
+
+    print(f"    Fetched {len(new_df)} match stat rows")
+
+    stats_path = PROCESSED_DIR / "match_stats.parquet"
+    if stats_path.exists():
+        existing = pd.read_parquet(stats_path)
+        # Remove existing rows for this year+round (idempotent)
+        mask = ~((existing["year"] == year) & (existing["round"].astype(str) == str(round_num)))
+        existing = existing[mask]
+        combined = pd.concat([existing, new_df], ignore_index=True)
+    else:
+        combined = new_df
+
+    combined.to_parquet(stats_path, index=False, engine="pyarrow")
+    print(f"    Saved match_stats.parquet — {len(combined)} total rows "
+          f"({len(new_df)} new for Round {round_num})")
+
+
 def step2_update_matches(new_matches: list[dict], year: int, round_num: int):
     """Append new match results to matches.parquet."""
     print(f"\n  STEP 2: Updating matches.parquet...")
@@ -341,6 +388,7 @@ def main():
         # Incremental update
         if not args.skip_scrape:
             new_matches, new_ladders = step1_scrape_round(year, round_num)
+            step_scrape_match_stats(year, round_num)
             step2_update_matches(new_matches, year, round_num)
             step3_update_ladders(new_ladders, year, round_num)
         else:

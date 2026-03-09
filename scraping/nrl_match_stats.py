@@ -213,8 +213,9 @@ def parse_match_stats(
             if col_name is None:
                 continue
 
-            home_val = _extract_stat_value(stat.get("home"))
-            away_val = _extract_stat_value(stat.get("away"))
+            # NRL API changed format: "home"/"away" → "homeValue"/"awayValue"
+            home_val = _extract_stat_value(stat.get("homeValue") or stat.get("home"))
+            away_val = _extract_stat_value(stat.get("awayValue") or stat.get("away"))
 
             row[f"home_{col_name}"] = home_val
             row[f"away_{col_name}"] = away_val

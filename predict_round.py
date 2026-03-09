@@ -827,7 +827,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     # Sample weights (exponential decay favouring recent seasons)
     train_years = historical["year"].values
     max_yr = train_years.max()
-    sample_weights = SAMPLE_WEIGHT_DECAY ** (max_yr - train_years)
+    sample_weights = np.asarray(SAMPLE_WEIGHT_DECAY ** (max_yr - train_years), dtype=np.float64)
 
     # Training medians (cached for fast re-scoring)
     medians = X_train_raw.median()

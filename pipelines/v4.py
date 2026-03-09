@@ -845,6 +845,161 @@ def compute_team_stats_features(matches):
 
 
 # =========================================================================
+# ROLLING PER-GAME MATCH STATS FEATURES
+# =========================================================================
+
+ROLLING_MATCH_STATS = [
+    "completion_rate", "line_breaks", "tackle_breaks", "errors", "missed_tackles",
+    "all_run_metres", "possession_pct", "effective_tackle_pct", "post_contact_metres", "offloads",
+]
+ROLLING_WINDOWS = [3, 5]
+
+
+def compute_rolling_match_stats_features(matches, match_stats_df):
+    """Compute rolling per-game match stats features (process quality) for each team.
+
+    For each team in each match, computes rolling averages of process quality
+    stats (completion rate, line breaks, tackle breaks, etc.) over the last
+    3 and 5 games, using ONLY prior matches (no look-ahead bias).
+
+    Adds columns:
+      - home_ms_{stat}_{window}   — home team rolling average
+      - away_ms_{stat}_{window}   — away team rolling average
+      - ms_diff_{stat}_{window}   — home minus away differential
+
+    Total new features: 10 stats × 2 windows × 3 (home/away/diff) = 60.
+
+    Parameters
+    ----------
+    matches : pd.DataFrame
+        Main matches DataFrame (already sorted chronologically, reset index).
+    match_stats_df : pd.DataFrame or None
+        Per-game team stats from match_stats.parquet.  Schema has columns:
+        year, round, home_team, away_team, home_{stat}, away_{stat}, ...
+
+    Returns
+    -------
+    pd.DataFrame
+        matches with new rolling match stats columns appended.
+    """
+    print("\n" + "=" * 80)
+    print("  V4: COMPUTING ROLLING MATCH STATS FEATURES")
+    print("=" * 80)
+
+    if match_stats_df is None or len(match_stats_df) == 0:
+        print("  WARNING: match_stats_df is None or empty — skipping rolling match stats features")
+        return matches
+
+    df = matches.copy().reset_index(drop=True)
+    ms = match_stats_df.copy()
+
+    # ── Identify available stats ─────────────────────────────────────────────
+    available_stats = [
+        s for s in ROLLING_MATCH_STATS
+        if f"home_{s}" in ms.columns and f"away_{s}" in ms.columns
+    ]
+    if not available_stats:
+        print("  WARNING: No matching stat columns in match_stats_df — skipping")
+        return matches
+
+    # ── Normalise join keys ───────────────────────────────────────────────────
+    ms["year"] = pd.to_numeric(ms["year"], errors="coerce").astype("Int64")
+    ms["_round_str"] = ms["round"].astype(str)
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["_round_str"] = df["round"].astype(str)
+
+    # Add positional index for lookup (matches is sorted chronologically)
+    df["_match_idx"] = range(len(df))
+
+    # ── Join match_stats with matches to get date + match_idx ─────────────────
+    stat_home_cols = [f"home_{s}" for s in available_stats]
+    stat_away_cols = [f"away_{s}" for s in available_stats]
+    ms_slim = ms[["year", "_round_str", "home_team", "away_team"] + stat_home_cols + stat_away_cols].copy()
+
+    merge_ref = df[["_match_idx", "year", "_round_str", "home_team", "away_team", "date"]].copy()
+
+    joined = ms_slim.merge(
+        merge_ref,
+        on=["year", "_round_str", "home_team", "away_team"],
+        how="inner",
+    )
+
+    if len(joined) == 0:
+        print("  WARNING: No matches joined between match_stats and matches "
+              "— check team name standardisation")
+        df = df.drop(columns=["_match_idx", "_round_str"], errors="ignore")
+        return df
+
+    print(f"  Joined {len(joined)} match-stat rows to matches")
+
+    # ── Build per-team match log ───────────────────────────────────────────────
+    # Each match_stats row → two entries (one per team, stats from their perspective)
+    home_records = []
+    away_records = []
+    for _, row in joined.iterrows():
+        base = {"match_idx": int(row["_match_idx"]), "date": row["date"]}
+        h = dict(base, team=row["home_team"])
+        a = dict(base, team=row["away_team"])
+        for stat in available_stats:
+            h[stat] = row.get(f"home_{stat}", np.nan)
+            a[stat] = row.get(f"away_{stat}", np.nan)
+        home_records.append(h)
+        away_records.append(a)
+
+    team_log = pd.concat(
+        [pd.DataFrame(home_records), pd.DataFrame(away_records)],
+        ignore_index=True,
+    )
+    team_log = team_log.sort_values(["team", "date", "match_idx"]).reset_index(drop=True)
+
+    # ── Build lookup: (team, match_idx) → {stat_window: value} ───────────────
+    lookup: dict[tuple, dict] = {}
+    for team in team_log["team"].unique():
+        t_log = team_log[team_log["team"] == team].reset_index(drop=True)
+        for i, row in t_log.iterrows():
+            midx = int(row["match_idx"])
+            key = (team, midx)
+            lookup.setdefault(key, {})
+            prior = t_log.iloc[:i]
+            for w in ROLLING_WINDOWS:
+                pw = prior.tail(w)
+                for stat in available_stats:
+                    vals = pw[stat].dropna()
+                    lookup[key][f"{stat}_{w}"] = float(vals.mean()) if len(vals) > 0 else np.nan
+
+    # ── Attach features to DataFrame ──────────────────────────────────────────
+    n_added = 0
+    for side, team_col in [("home", "home_team"), ("away", "away_team")]:
+        for w in ROLLING_WINDOWS:
+            for stat in available_stats:
+                col_name = f"{side}_ms_{stat}_{w}"
+                df[col_name] = [
+                    lookup.get((df.at[i, team_col], i), {}).get(f"{stat}_{w}", np.nan)
+                    for i in range(len(df))
+                ]
+                n_added += 1
+
+    # Differentials (home − away)
+    for w in ROLLING_WINDOWS:
+        for stat in available_stats:
+            h_col = f"home_ms_{stat}_{w}"
+            a_col = f"away_ms_{stat}_{w}"
+            df[f"ms_diff_{stat}_{w}"] = df[h_col] - df[a_col]
+            n_added += 1
+
+    # Summarise
+    first_stat = available_stats[0]
+    coverage = df[f"home_ms_{first_stat}_3"].notna().mean() * 100
+    print(f"  Added {n_added} rolling match stats features "
+          f"({len(available_stats)} stats × {len(ROLLING_WINDOWS)} windows × 3) "
+          f"| Coverage: {coverage:.0f}%")
+
+    # Clean up temporary columns
+    df = df.drop(columns=["_match_idx", "_round_str"], errors="ignore")
+    return df
+
+
+# =========================================================================
 # BUILD V4 FEATURE MATRIX
 # =========================================================================
 

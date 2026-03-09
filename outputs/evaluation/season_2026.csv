@@ -1,0 +1,2 @@
+home_team,away_team,tip,odds_tip,model_tip,actual_winner,actual_margin,home_win_prob,odds_home_prob,model_prob,confidence,home_score,away_score,tip_correct,odds_correct,model_correct,year,round
+Canterbury Bulldogs,St George Illawarra Dragons,Canterbury Bulldogs,Canterbury Bulldogs,Canterbury Bulldogs,Canterbury Bulldogs,1.0,0.583329617017037,0.5267379679144386,0.5812916970283248,0.166659234034074,15.0,14.0,1,1,1,2026,1

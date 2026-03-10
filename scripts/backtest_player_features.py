@@ -580,8 +580,8 @@ def run_backtest(
         y_train = train_df["home_win"].values.astype(float)
         y_test = test_df["home_win"].values.astype(float)
 
-        train_yrs = train_df["year"].values
-        sample_weights = SAMPLE_WEIGHT_DECAY ** (train_yrs.max() - train_yrs)
+        train_yrs = train_df["year"].astype(float).values
+        sample_weights = np.array(SAMPLE_WEIGHT_DECAY ** (train_yrs.max() - train_yrs), dtype=np.float64)
 
         # Odds benchmark
         odds_probs = test_df.get("odds_home_prob", pd.Series(np.full(len(test_df), 0.55))).values
@@ -843,7 +843,7 @@ def main() -> None:
 
     # ── Load core data ────────────────────────────────────────────────────
     print("\n  Loading historical data...")
-    matches, ladders, odds, match_stats = load_historical_data()
+    matches, ladders, odds, match_stats, player_match_stats = load_historical_data()
     elo_params = get_elo_params(matches, retune=False)
 
     # ── Load player stats (graceful if missing) ───────────────────────────

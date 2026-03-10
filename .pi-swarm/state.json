@@ -1,646 +1,597 @@
 {
-  "runId": "run-mmj1g5tw",
-  "objective": "Add rolling per-game match stats features to the NRL prediction pipeline.\n\n## Context\n\nThe NRL.com API provides team-level stats per game (completion rate, line breaks, tackle breaks, errors, etc.) stored in `data/processed/match_stats.parquet`. We want to compute rolling averages of these stats and use them as predictive features. This captures \"process quality\" (how a team is actually playing) vs our current \"outcome-based\" features (win/loss streaks).\n\nThe match_stats.parquet schema has columns: year, round, home_team, away_team, home_score, away_score, plus home_* and away_* for each stat (e.g. home_completion_rate, away_completion_rate, home_line_breaks, away_line_breaks, etc.). ~2000+ rows covering 2015-2026.\n\n## File Ownership (strict — no exceptions)\n| Builder | Owns (exclusive write access) |\n|---------|-------------------------------|\n| Builder 1 | pipelines/v4.py, predict_round.py, refresh_week.py |\n\n## Builder 1: All changes (3 files)\n\n### Change 1: pipelines/v4.py — Add compute_rolling_match_stats_features()\n\nAdd a new function `compute_rolling_match_stats_features(matches, match_stats_df)` near the end of the file (before `build_v4_feature_matrix`).\n\nLogic:\n1. Takes the main matches DataFrame and the match_stats DataFrame\n2. If match_stats_df is None or empty, print a warning and return matches unchanged\n3. Build a per-team match log from match_stats (each row becomes two entries: one for home team, one for away team with stats from their perspective). Key stats to track:\n   - completion_rate, line_breaks, tackle_breaks, errors, missed_tackles\n   - all_run_metres, possession_pct, effective_tackle_pct, post_contact_metres, offloads\n4. Sort by date (join match_stats with matches on year+round+home_team+away_team to get dates)\n5. For each team, compute rolling averages over windows of 3 and 5 games using ONLY prior matches (no look-ahead)\n6. Merge back onto the main matches DataFrame as:\n   - `home_ms_{stat}_{window}` (e.g. home_ms_completion_rate_3)\n   - `away_ms_{stat}_{window}` (e.g. away_ms_completion_rate_3)  \n   - `ms_diff_{stat}_{window}` = home - away differential\n7. Print summary: how many features added, coverage percentage\n\nThe stats to compute rolling averages for (10 stats × 2 windows × 3 cols = 60 new features):\n```\nROLLING_MATCH_STATS = [\n    \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n    \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n]\nROLLING_WINDOWS = [3, 5]\n```\n\nIMPORTANT implementation detail: the team log must normalize stats so that each row represents ONE team's performance. From a match_stats row where team X is home:\n- X's stats = home_* columns\n- From a match_stats row where team X is away:\n- X's stats = away_* columns\n\nThen for each match in the main matches DataFrame, look up each team's rolling avg from their prior games.\n\n### Change 2: predict_round.py — Integrate new features\n\na) Add new feature column names to the FEATURE_COLS list. Add them in a new section after the existing V4 features comment block. The pattern is:\n```python\n    # V4 Rolling match stats features (60)\n    *[f\"home_ms_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n    *[f\"away_ms_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n    *[f\"ms_diff_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n```\n\nb) In `load_historical_data()`, add loading of match_stats.parquet:\n```python\n    match_stats_path = PROCESSED_DIR / \"match_stats.parquet\"\n    if match_stats_path.exists():\n        match_stats = pd.read_parquet(match_stats_path)\n    else:\n        print(\"  WARNING: match_stats.parquet not found — running without rolling match stats\")\n        match_stats = None\n```\nUpdate the return statement to include match_stats (return matches, ladders, odds, match_stats).\n\nc) In `build_features()`, update the function signature to accept match_stats parameter, and add the call:\n```python\n    all_matches = v4.compute_rolling_match_stats_features(all_matches, match_stats)\n```\nAdd this call AFTER the existing v4 feature calls (after compute_v4_engineered_features).\n\nd) Update ALL call sites of `load_historical_data()` and `build_features()` in main() to pass the new parameter. Search for every place these functions are called and update them. There are at least 2 call sites for each in the auto mode and manual mode branches.\n\n### Change 3: refresh_week.py — Add match stats scraping step\n\nAdd a new step between the existing steps. After step1_scrape_round (which scrapes match results) and before step2_update_matches, add a step that:\n\n1. Imports fetch_round_match_stats from scraping.nrl_match_stats\n2. Calls fetch_round_match_stats(year, round_num) to get stats for the just-completed round\n3. If stats are returned, loads existing match_stats.parquet, removes any existing rows for this year+round (idempotent), appends new rows, and saves back\n4. Prints summary of what was added\n\nAdd this as a new function `step_scrape_match_stats(year, round_num)` and call it in main() after step1 results are available. Use a step number like \"STEP 1b\" to avoid renumbering all existing steps.\n\n## Acceptance Criteria\n- `python3 -c \"from pipelines.v4 import compute_rolling_match_stats_features; print('OK')\"` succeeds\n- `python3 -c \"from predict_round import FEATURE_COLS; ms_feats = [f for f in FEATURE_COLS if 'ms_' in f]; print(f'{len(ms_feats)} match stat features'); assert len(ms_feats) == 60\"` succeeds\n- `python3 -c \"from predict_round import load_historical_data; result = load_historical_data(); print(f'Returns {len(result)} items'); assert len(result) == 4\"` succeeds (returns 4-tuple)\n- refresh_week.py has a step that scrapes match stats\n- No syntax errors in any modified file\n\n## Git commit message\nfeat: add rolling match stats features (completion, line breaks, tackle breaks, etc.)\n\nIntegrates NRL.com per-game team stats as rolling 3/5-game average features.\n60 new features capturing team process quality: completion rate, line breaks,\ntackle breaks, errors, missed tackles, run metres, possession, tackle\nefficiency, post-contact metres, and offloads.\n",
+  "runId": "run-mmkoljqf",
+  "objective": "Add player-level form features to the NRL prediction model.\n\n## Context\nThe NRL.com match centre API provides per-player stats at `stats.players.homeTeam` / `stats.players.awayTeam` with 59 fields per player per game. Available from 2015 onwards. The existing scraper `scraping/nrl_match_stats.py` already fetches the same match centre URLs but only extracts team-level stats — the player data is right there in the same JSON response under `data['stats']['players']`.\n\nThe match centre URL pattern is: `https://www.nrl.com{matchCentreUrl}data` where matchCentreUrl comes from the draw API. The draw API is: `https://www.nrl.com/draw/data?competition=111&season={year}&round={round_num}`.\n\nPlayer IDs from the match centre (`playerId` field) map directly to the teamlist player IDs from `scraping/nrl_teamlists.py`.\n\nCurrent model uses 338 features with top-60 selection. Feature engineering is in `pipelines/v4.py`. The existing pattern for rolling match stats (in `compute_rolling_match_stats_features()`) should be followed for the new player features.\n\n## File Ownership (strict — no exceptions)\n| Builder | Owns (exclusive write access) |\n|---------|-------------------------------|\n| Builder 1 | scraping/nrl_player_stats.py (NEW), pipelines/v4.py, predict_round.py |\n| Builder 2 | refresh_week.py, scripts/backtest_player_features.py (NEW) |\n\n## Builder 1: Scraper + Features + Prediction Integration\n\n### Part A: scraping/nrl_player_stats.py (NEW FILE)\nCreate a scraper for per-player match stats. Follow the pattern in `scraping/nrl_match_stats.py`:\n- `fetch_round_player_stats(year, round_num, delay=0.3)` — fetch all player stats for a round via the match centre API\n- `fetch_season_player_stats(year)` — all rounds for a season\n- `backfill_all_player_stats(start_year=2015, end_year=2026)` — bulk scrape\n- For each completed match in a round:\n  1. Get `matchCentreUrl` from the draw API\n  2. Fetch `{NRL_API_BASE}{matchCentreUrl}data`\n  3. Extract `data['stats']['players']['homeTeam']` and `data['stats']['players']['awayTeam']`\n  4. Each player entry has `playerId` plus ~58 stat fields (allRunMetres, allRuns, tacklesMade, lineBreaks, tackleBreaks, tryAssists, fantasyPointsTotal, minutesPlayed, errors, missedTackles, offloads, postContactMetres, etc.)\n  5. Flatten into rows: year, round, match_id, team, player_id, player_position (from jersey number mapping), is_starter (jersey <= 13), plus all stat fields\n- Save to `data/processed/player_match_stats.parquet`\n- Include a `__main__` block for standalone execution: `python -m scraping.nrl_player_stats`\n- Use the team name standardisation from `scraping/nrl_match_stats.py` (TEAM_MAP dict)\n- Also get player name and jersey number from the homeTeam/awayTeam.players list in the main match data (NOT the stats section — the stats section only has playerId). Merge lineup info with stats by playerId.\n\nKey stat fields to extract (at minimum): allRunMetres, allRuns, tacklesMade, tackleBreaks, lineBreaks, lineBreakAssists, tryAssists, tries, fantasyPointsTotal, minutesPlayed, errors, handlingErrors, missedTackles, offloads, postContactMetres, kicks, kickMetres, penalties, ineffectiveTackles, passes, receipts, dummyHalfRuns\n\n### Part B: pipelines/v4.py — add compute_player_form_features()\nAdd a new function `compute_player_form_features(matches, player_stats_df)` following the pattern of `compute_rolling_match_stats_features()`. This function:\n\n1. Loads player_match_stats.parquet\n2. For each match, identifies the starting spine (jersey 1=FB, 6=FE, 7=HB, 9=HK) and starting 13\n3. Computes rolling 3/5-game averages per player using ONLY prior games (no look-ahead)\n4. Aggregates into match-level features:\n\n**Spine form features (24):**\n- `{home,away}_spine_run_metres_{3,5}` — avg of 4 spine players' rolling run metres\n- `{home,away}_spine_line_breaks_{3,5}` — avg line breaks\n- `{home,away}_spine_tackle_breaks_{3,5}` — avg tackle breaks  \n- `{home,away}_spine_try_assists_{3,5}` — avg try assists\n- Plus `spine_diff_*` for each (home minus away) = 8 diff features\n\n**Starting 13 quality features (12):**\n- `{home,away}_squad_fantasy_{3,5}` — avg of starting 13's rolling fantasy points\n- `{home,away}_squad_minutes_{3,5}` — avg minutes (fitness/experience proxy)\n- Plus `squad_diff_*` diffs = 4 diff features\n\n**Squad disruption features (6):**\n- `{home,away}_spine_changes` — number of spine positions with different player vs last game (0-4)\n- `spine_changes_diff` — home minus away\n- `{home,away}_squad_turnover` — number of starting 13 slots with different player vs last game\n- `squad_turnover_diff`\n\nThe function must handle NaN gracefully when players have no history (early season, debuts).\n\n### Part C: predict_round.py — integration\n1. Add player_match_stats loading in `load_historical_data()` (similar to match_stats loading around line 348)\n2. Pass player_match_stats to `build_features()` and on to `compute_player_form_features()`\n3. Add the new feature column names to the V4_FEATURE_COLS list (around line 90)\n4. Add them to the appropriate section alongside the existing `# V4 Rolling match stats features (60)` comment\n\n### Acceptance criteria\n- `python -m scraping.nrl_player_stats` runs and creates player_match_stats.parquet (DON'T actually run the full backfill, just verify the module imports and the single-round fetch works for 2026 R1)\n- The new features appear in the feature DataFrame when build_features() is called\n- No look-ahead bias: rolling averages only use prior games\n- All new feature columns have the naming convention: `{home,away}_spine_*`, `{home,away}_squad_*`, `spine_diff_*`, `squad_diff_*`, `spine_changes_diff`, `squad_turnover_diff`\n\n## Builder 2: Refresh Integration + Backtest\n\n### Part A: refresh_week.py — add player stats to Monday refresh\nAdd a new step `step_scrape_player_stats(year, round_num)` that:\n1. Calls `fetch_round_player_stats()` from the new scraper\n2. Appends to existing player_match_stats.parquet (or creates if missing)\n3. Deduplicates on (year, round, match_id, player_id)\n4. Called from the main refresh flow alongside `step_scrape_match_stats()` (around line 391)\nFollow the exact pattern of `step_scrape_match_stats()` in refresh_week.py.\n\n### Part B: scripts/backtest_player_features.py (NEW FILE)\nCreate a backtest script that:\n1. Loads all data (matches, ladders, odds, match_stats, player_match_stats)\n2. Runs the full feature pipeline for 2023-2025 seasons\n3. Trains CatBoost with top-60 feature selection (same as predict_round.py)\n4. Compares accuracy:\n   - Baseline: current features (no player features)\n   - Enhanced: current features + new player features\n5. Reports: accuracy %, log loss, and which player features made the top-60\n6. Uses walk-forward validation: train on all data before each season, predict that season\n7. Prints a clear comparison table\n\n### Acceptance criteria\n- `step_scrape_player_stats()` exists in refresh_week.py and is called in the refresh flow\n- backtest script runs standalone: `python scripts/backtest_player_features.py`\n- Backtest gracefully handles missing player_match_stats.parquet (prints warning, runs baseline only)\n\n## Git commit message\nfeat: add per-player form features to prediction model\n\n- New scraper for per-player match stats from NRL.com match centre API\n- Rolling spine form + starting 13 quality + squad disruption features (~42 new)\n- Integrated into prediction pipeline and Monday refresh\n- Backtest script to validate feature lift",
   "status": "completed",
   "complexity": "complex",
   "baseBranch": "main",
   "repoRoot": "/root/NRL-Predict",
-  "startedAt": "2026-03-09T10:28:32.516Z",
-  "completedAt": "2026-03-09T10:41:22.242Z",
+  "startedAt": "2026-03-10T14:04:21.159Z",
+  "completedAt": "2026-03-10T14:25:44.800Z",
   "agents": [
     {
       "name": "scout-1",
       "capability": "scout",
-      "task": "Explore codebase for: Add rolling per-game match stats features to the NRL prediction pipeline.\n\n## Context\n\nThe NRL.com API provides team-level stats per game (completion rate, line breaks, tackle breaks, errors, etc.) stored in `data/processed/match_stats.parquet`. We want to compute rolling averages of these stats and use them as predictive features. This captures \"process quality\" (how a team is actually playing) vs our current \"outcome-based\" features (win/loss streaks).\n\nThe match_stats.parquet schema has colum. Report file layout, types, dependencies, and patterns.",
+      "task": "Explore codebase to prepare context for 2 builders. Objective: Add player-level form features to the NRL prediction model.\n\n## Context\nThe NRL.com match centre API provides per-player stats at `stats.players.homeTeam` / `stats.players.awayTeam` with 59 fields per player per game. Available from 2015 onwards. The existing scraper `scraping/nrl_match_stats.py` already fetches the same match centre URLs but only extracts team-level stats — the player data is right there in the same JSON response under `data['stats']['players']`.\n\nThe match centre URL pattern i",
       "status": "completed",
       "exitCode": 0,
-      "startedAt": "2026-03-09T10:28:32.518Z",
-      "completedAt": "2026-03-09T10:30:04.709Z",
+      "startedAt": "2026-03-10T14:04:21.162Z",
+      "completedAt": "2026-03-10T14:06:31.348Z",
       "usage": {
-        "input": 271,
-        "output": 8618,
-        "cacheRead": 687393,
-        "cacheWrite": 47496,
-        "cost": 0.17147030000000005,
-        "contextTokens": 49869,
-        "turns": 21
+        "input": 214,
+        "output": 12009,
+        "cacheRead": 498985,
+        "cacheWrite": 46923,
+        "cost": 0.16881125000000002,
+        "contextTokens": 49007,
+        "turns": 16
       },
       "model": "claude-haiku-4-5",
       "worktree": null,
-      "lastOutput": "matches, match_stats)\n   ```\n2. Update `build_v4_feature_matrix()` to include new rolling stat columns\n3. Document which stats were included in feature summary\n\n**Builder 3 creates tests:**\n1. Unit tests for rolling computation (manual dataframe, verify window math)\n2. Integration test: ensure no NaN bleed where data exists\n3. Walk-forward backtest: compare accuracy with/without rolling match stats\n\n---\n\nThis structure allows independent parallel work with clear boundaries and no file conflicts.",
+      "lastOutput": "ture importance\n\n**Dependency:** Builder 1 → Builder 2 (Builder 2 depends on Builder 1's parquet output)\n\n---\n\n**Summary for dispatch:**\n- **Complexity:** Moderate (2 files new, 2 files extended, ~300 lines total)\n- **Test data:** 2026 season (round 1-5 complete), historical 2013-2025\n- **No breaking changes:** Fully backward compatible, gracefully handles missing player_form_features.parquet\n- **Timeline:** Builder 1 (player extraction) ~4 hours, Builder 2 (pipeline integration + test) ~3 hours",
       "activityLog": [
         {
-          "timestamp": "2026-03-09T10:28:41.006Z",
+          "timestamp": "2026-03-10T14:04:27.742Z",
+          "type": "turn_complete",
+          "summary": "turn 1"
+        },
+        {
+          "timestamp": "2026-03-10T14:04:32.595Z",
           "type": "turn_complete",
           "summary": "turn 2"
         },
         {
-          "timestamp": "2026-03-09T10:28:44.050Z",
+          "timestamp": "2026-03-10T14:04:37.654Z",
           "type": "turn_complete",
           "summary": "turn 3"
         },
         {
-          "timestamp": "2026-03-09T10:28:47.205Z",
+          "timestamp": "2026-03-10T14:04:40.478Z",
           "type": "turn_complete",
           "summary": "turn 4"
         },
         {
-          "timestamp": "2026-03-09T10:28:50.596Z",
+          "timestamp": "2026-03-10T14:04:43.295Z",
           "type": "turn_complete",
           "summary": "turn 5"
         },
         {
-          "timestamp": "2026-03-09T10:28:52.691Z",
+          "timestamp": "2026-03-10T14:04:45.898Z",
           "type": "turn_complete",
           "summary": "turn 6"
         },
         {
-          "timestamp": "2026-03-09T10:28:55.732Z",
+          "timestamp": "2026-03-10T14:04:48.805Z",
           "type": "turn_complete",
           "summary": "turn 7"
         },
         {
-          "timestamp": "2026-03-09T10:28:57.476Z",
+          "timestamp": "2026-03-10T14:04:54.781Z",
           "type": "turn_complete",
           "summary": "turn 8"
         },
         {
-          "timestamp": "2026-03-09T10:29:00.968Z",
+          "timestamp": "2026-03-10T14:05:00.128Z",
           "type": "turn_complete",
           "summary": "turn 9"
         },
         {
-          "timestamp": "2026-03-09T10:29:05.047Z",
+          "timestamp": "2026-03-10T14:05:05.989Z",
           "type": "turn_complete",
           "summary": "turn 10"
         },
         {
-          "timestamp": "2026-03-09T10:29:08.344Z",
+          "timestamp": "2026-03-10T14:05:09.809Z",
           "type": "turn_complete",
           "summary": "turn 11"
         },
         {
-          "timestamp": "2026-03-09T10:29:10.855Z",
+          "timestamp": "2026-03-10T14:05:11.876Z",
           "type": "turn_complete",
           "summary": "turn 12"
         },
         {
-          "timestamp": "2026-03-09T10:29:12.677Z",
+          "timestamp": "2026-03-10T14:05:41.604Z",
           "type": "turn_complete",
           "summary": "turn 13"
         },
         {
-          "timestamp": "2026-03-09T10:29:15.508Z",
+          "timestamp": "2026-03-10T14:05:43.553Z",
           "type": "turn_complete",
           "summary": "turn 14"
         },
         {
-          "timestamp": "2026-03-09T10:29:17.171Z",
+          "timestamp": "2026-03-10T14:06:10.426Z",
           "type": "turn_complete",
           "summary": "turn 15"
         },
         {
-          "timestamp": "2026-03-09T10:29:25.121Z",
+          "timestamp": "2026-03-10T14:06:31.315Z",
           "type": "turn_complete",
           "summary": "turn 16"
-        },
-        {
-          "timestamp": "2026-03-09T10:29:28.840Z",
-          "type": "turn_complete",
-          "summary": "turn 17"
-        },
-        {
-          "timestamp": "2026-03-09T10:29:33.467Z",
-          "type": "turn_complete",
-          "summary": "turn 18"
-        },
-        {
-          "timestamp": "2026-03-09T10:29:36.156Z",
-          "type": "turn_complete",
-          "summary": "turn 19"
-        },
-        {
-          "timestamp": "2026-03-09T10:29:41.706Z",
-          "type": "turn_complete",
-          "summary": "turn 20"
-        },
-        {
-          "timestamp": "2026-03-09T10:30:04.625Z",
-          "type": "turn_complete",
-          "summary": "turn 21"
         }
       ],
-      "tokensPerSecond": 93.6,
-      "currentTurn": 21,
+      "tokensPerSecond": 92.3,
+      "currentTurn": 16,
       "progressPct": 95
     },
     {
       "name": "builder-2",
       "capability": "builder",
-      "task": "Add rolling per-game match stats features to the NRL prediction pipeline.\n\n## Context\n\nThe NRL.com API provides team-level stats per game (completion rate, line breaks, tackle breaks, errors, etc.) stored in `data/processed/match_stats.parquet`. We want to compute rolling averages of these stats and use them as predictive features. This captures \"process quality\" (how a team is actually playing) vs our current \"outcome-based\" features (win/loss streaks).\n\nThe match_stats.parquet schema has columns: year, round, home_team, away_team, home_score, away_score, plus home_* and away_* for each stat (e.g. home_completion_rate, away_completion_rate, home_line_breaks, away_line_breaks, etc.). ~2000+ rows covering 2015-2026.\n\n## File Ownership (strict — no exceptions)\n| Builder | Owns (exclusive write access) |\n|---------|-------------------------------|\n| Builder 1 | pipelines/v4.py, predict_round.py, refresh_week.py |\n\n## Builder 1: All changes (3 files)\n\n### Change 1: pipelines/v4.py — Add compute_rolling_match_stats_features()\n\nAdd a new function `compute_rolling_match_stats_features(matches, match_stats_df)` near the end of the file (before `build_v4_feature_matrix`).\n\nLogic:\n1. Takes the main matches DataFrame and the match_stats DataFrame\n2. If match_stats_df is None or empty, print a warning and return matches unchanged\n3. Build a per-team match log from match_stats (each row becomes two entries: one for home team, one for away team with stats from their perspective). Key stats to track:\n   - completion_rate, line_breaks, tackle_breaks, errors, missed_tackles\n   - all_run_metres, possession_pct, effective_tackle_pct, post_contact_metres, offloads\n4. Sort by date (join match_stats with matches on year+round+home_team+away_team to get dates)\n5. For each team, compute rolling averages over windows of 3 and 5 games using ONLY prior matches (no look-ahead)\n6. Merge back onto the main matches DataFrame as:\n   - `home_ms_{stat}_{window}` (e.g. home_ms_completion_rate_3)\n   - `away_ms_{stat}_{window}` (e.g. away_ms_completion_rate_3)  \n   - `ms_diff_{stat}_{window}` = home - away differential\n7. Print summary: how many features added, coverage percentage\n\nThe stats to compute rolling averages for (10 stats × 2 windows × 3 cols = 60 new features):\n```\nROLLING_MATCH_STATS = [\n    \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n    \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n]\nROLLING_WINDOWS = [3, 5]\n```\n\nIMPORTANT implementation detail: the team log must normalize stats so that each row represents ONE team's performance. From a match_stats row where team X is home:\n- X's stats = home_* columns\n- From a match_stats row where team X is away:\n- X's stats = away_* columns\n\nThen for each match in the main matches DataFrame, look up each team's rolling avg from their prior games.\n\n### Change 2: predict_round.py — Integrate new features\n\na) Add new feature column names to the FEATURE_COLS list. Add them in a new section after the existing V4 features comment block. The pattern is:\n```python\n    # V4 Rolling match stats features (60)\n    *[f\"home_ms_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n    *[f\"away_ms_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n    *[f\"ms_diff_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n```\n\nb) In `load_historical_data()`, add loading of match_stats.parquet:\n```python\n    match_stats_path = PROCESSED_DIR / \"match_stats.parquet\"\n    if match_stats_path.exists():\n        match_stats = pd.read_parquet(match_stats_path)\n    else:\n        print(\"  WARNING: match_stats.parquet not found — running without rolling match stats\")\n        match_stats = None\n```\nUpdate the return statement to include match_stats (return matches, ladders, odds, match_stats).\n\nc) In `build_features()`, update the function signature to accept match_stats parameter, and add the call:\n```python\n    all_matches = v4.compute_rolling_match_stats_features(all_matches, match_stats)\n```\nAdd this call AFTER the existing v4 feature calls (after compute_v4_engineered_features).\n\nd) Update ALL call sites of `load_historical_data()` and `build_features()` in main() to pass the new parameter. Search for every place these functions are called and update them. There are at least 2 call sites for each in the auto mode and manual mode branches.\n\n### Change 3: refresh_week.py — Add match stats scraping step\n\nAdd a new step between the existing steps. After step1_scrape_round (which scrapes match results) and before step2_update_matches, add a step that:\n\n1. Imports fetch_round_match_stats from scraping.nrl_match_stats\n2. Calls fetch_round_match_stats(year, round_num) to get stats for the just-completed round\n3. If stats are returned, loads existing match_stats.parquet, removes any existing rows for this year+round (idempotent), appends new rows, and saves back\n4. Prints summary of what was added\n\nAdd this as a new function `step_scrape_match_stats(year, round_num)` and call it in main() after step1 results are available. Use a step number like \"STEP 1b\" to avoid renumbering all existing steps.\n\n## Acceptance Criteria\n- `python3 -c \"from pipelines.v4 import compute_rolling_match_stats_features; print('OK')\"` succeeds\n- `python3 -c \"from predict_round import FEATURE_COLS; ms_feats = [f for f in FEATURE_COLS if 'ms_' in f]; print(f'{len(ms_feats)} match stat features'); assert len(ms_feats) == 60\"` succeeds\n- `python3 -c \"from predict_round import load_historical_data; result = load_historical_data(); print(f'Returns {len(result)} items'); assert len(result) == 4\"` succeeds (returns 4-tuple)\n- refresh_week.py has a step that scrapes match stats\n- No syntax errors in any modified file\n\n## Git commit message\nfeat: add rolling match stats features (completion, line breaks, tackle breaks, etc.)\n\nIntegrates NRL.com per-game team stats as rolling 3/5-game average features.\n60 new features capturing team process quality: completion rate, line breaks,\ntackle breaks, errors, missed tackles, run metres, possession, tackle\nefficiency, post-contact metres, and offloads.\n",
+      "task": "## Builder 2: Refresh Integration + Backtest\n\n### Part A: refresh_week.py — add player stats to Monday refresh\nAdd a new step `step_scrape_player_stats(year, round_num)` that:\n1. Calls `fetch_round_player_stats()` from the new scraper\n2. Appends to existing player_match_stats.parquet (or creates if missing)\n3. Deduplicates on (year, round, match_id, player_id)\n4. Called from the main refresh flow alongside `step_scrape_match_stats()` (around line 391)\nFollow the exact pattern of `step_scrape_match_stats()` in refresh_week.py.\n\n### Part B: scripts/backtest_player_features.py (NEW FILE)\nCreate a backtest script that:\n1. Loads all data (matches, ladders, odds, match_stats, player_match_stats)\n2. Runs the full feature pipeline for 2023-2025 seasons\n3. Trains CatBoost with top-60 feature selection (same as predict_round.py)\n4. Compares accuracy:\n   - Baseline: current features (no player features)\n   - Enhanced: current features + new player features\n5. Reports: accuracy %, log loss, and which player features made the top-60\n6. Uses walk-forward validation: train on all data before each season, predict that season\n7. Prints a clear comparison table\n\n### Acceptance criteria\n- `step_scrape_player_stats()` exists in refresh_week.py and is called in the refresh flow\n- backtest script runs standalone: `python scripts/backtest_player_features.py`\n- Backtest gracefully handles missing player_match_stats.parquet (prints warning, runs baseline only)\n\n## Git commit message\nfeat: add per-player form features to prediction model\n\n- New scraper for per-player match stats from NRL.com match centre API\n- Rolling spine form + starting 13 quality + squad disruption features (~42 new)\n- Integrated into prediction pipeline and Monday refresh\n- Backtest script to validate feature lift",
       "status": "merged",
       "exitCode": 0,
-      "startedAt": "2026-03-09T10:30:08.984Z",
-      "completedAt": "2026-03-09T10:35:52.992Z",
+      "startedAt": "2026-03-10T14:06:34.239Z",
+      "completedAt": "2026-03-10T14:19:16.080Z",
       "usage": {
-        "input": 43,
-        "output": 15986,
-        "cacheRead": 1805172,
-        "cacheWrite": 56484,
-        "cost": 0.9932856,
-        "contextTokens": 57396,
-        "turns": 42
+        "input": 32,
+        "output": 44703,
+        "cacheRead": 2000944,
+        "cacheWrite": 105980,
+        "cost": 1.6683491999999995,
+        "contextTokens": 107365,
+        "turns": 30
       },
       "model": "claude-sonnet-4-6",
+      "files": [
+        "scripts/backtest_player_features.py"
+      ],
       "worktree": {
         "path": "/root/NRL-Predict/.pi-swarm/worktrees/builder-2",
-        "branch": "swarm/builder-2-mmj1i5qy"
+        "branch": "swarm/builder-2-mmkoocym"
       },
-      "lastOutput": " on what's in `match_stats.parquet` — the scout noted sparse data (mostly 2015 + 2020-2022), so rolling features will be NaN-heavy for seasons outside that range. CatBoost/XGB handle NaNs natively, so this is fine.\n- `build_features()` uses `match_stats=None` as default so existing callers (e.g. in pipelines/v4.py's own `build_v4_feature_matrix`) don't break.\n- Year type normalization (`pd.to_numeric(...).astype(\"Int64\")`) handles mixed int/object year columns in both DataFrames during the join.",
+      "lastOutput": "rape_player_stats(year, round_num)` after `step_scrape_match_stats`:**\n```python\n            step_scrape_match_stats(year, round_num)\n            step_scrape_player_stats(year, round_num)   # ← ADD THIS LINE\n            step2_update_matches(new_matches, year, round_num)\n```\n\n**Existing bug in `backtest_team_stats.py`**: That script does `matches, ladders, odds = load_historical_data()` but the function returns 4 values (including `match_stats`). This is a pre-existing bug unrelated to this task.",
       "filesModified": [
         {
           "path": ".pi-swarm/scout-context.md",
-          "linesAdded": 150,
-          "linesRemoved": 0
+          "linesAdded": 92,
+          "linesRemoved": 111
         },
         {
           "path": ".pi/extensions/swarm-guard.ts",
-          "linesAdded": 167,
-          "linesRemoved": 0
+          "linesAdded": 2,
+          "linesRemoved": 2
         },
         {
-          "path": ".pi/extensions/swarm-mail.ts",
-          "linesAdded": 149,
-          "linesRemoved": 0
-        },
-        {
-          "path": ".pi/settings.json",
-          "linesAdded": 5,
-          "linesRemoved": 0
-        },
-        {
-          "path": "pipelines/v4.py",
-          "linesAdded": 155,
-          "linesRemoved": 0
-        },
-        {
-          "path": "predict_round.py",
-          "linesAdded": 33,
-          "linesRemoved": 7
-        },
-        {
-          "path": "refresh_week.py",
-          "linesAdded": 48,
+          "path": "scripts/backtest_player_features.py",
+          "linesAdded": 913,
           "linesRemoved": 0
         }
       ],
       "activityLog": [
         {
-          "timestamp": "2026-03-09T10:33:44.746Z",
+          "timestamp": "2026-03-10T14:07:52.426Z",
+          "type": "turn_complete",
+          "summary": "turn 11"
+        },
+        {
+          "timestamp": "2026-03-10T14:07:56.926Z",
+          "type": "turn_complete",
+          "summary": "turn 12"
+        },
+        {
+          "timestamp": "2026-03-10T14:08:01.776Z",
+          "type": "turn_complete",
+          "summary": "turn 13"
+        },
+        {
+          "timestamp": "2026-03-10T14:10:01.192Z",
+          "type": "turn_complete",
+          "summary": "turn 14"
+        },
+        {
+          "timestamp": "2026-03-10T14:10:17.218Z",
+          "type": "turn_complete",
+          "summary": "turn 15"
+        },
+        {
+          "timestamp": "2026-03-10T14:13:54.480Z",
+          "type": "turn_complete",
+          "summary": "turn 16"
+        },
+        {
+          "timestamp": "2026-03-10T14:14:03.775Z",
+          "type": "turn_complete",
+          "summary": "turn 17"
+        },
+        {
+          "timestamp": "2026-03-10T14:14:06.924Z",
+          "type": "turn_complete",
+          "summary": "turn 18"
+        },
+        {
+          "timestamp": "2026-03-10T14:16:59.060Z",
+          "type": "turn_complete",
+          "summary": "turn 19"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:06.234Z",
+          "type": "turn_complete",
+          "summary": "turn 20"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:10.750Z",
+          "type": "turn_complete",
+          "summary": "turn 21"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:15.388Z",
+          "type": "turn_complete",
+          "summary": "turn 22"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:23.372Z",
           "type": "turn_complete",
           "summary": "turn 23"
         },
         {
-          "timestamp": "2026-03-09T10:33:50.539Z",
+          "timestamp": "2026-03-10T14:17:35.708Z",
           "type": "turn_complete",
           "summary": "turn 24"
         },
         {
-          "timestamp": "2026-03-09T10:33:54.737Z",
+          "timestamp": "2026-03-10T14:17:42.193Z",
           "type": "turn_complete",
           "summary": "turn 25"
         },
         {
-          "timestamp": "2026-03-09T10:33:59.304Z",
+          "timestamp": "2026-03-10T14:17:56.454Z",
           "type": "turn_complete",
           "summary": "turn 26"
         },
         {
-          "timestamp": "2026-03-09T10:34:02.964Z",
+          "timestamp": "2026-03-10T14:18:14.996Z",
           "type": "turn_complete",
           "summary": "turn 27"
         },
         {
-          "timestamp": "2026-03-09T10:34:05.457Z",
+          "timestamp": "2026-03-10T14:18:48.590Z",
           "type": "turn_complete",
           "summary": "turn 28"
         },
         {
-          "timestamp": "2026-03-09T10:34:11.061Z",
+          "timestamp": "2026-03-10T14:18:52.675Z",
           "type": "turn_complete",
           "summary": "turn 29"
         },
         {
-          "timestamp": "2026-03-09T10:34:16.481Z",
+          "timestamp": "2026-03-10T14:19:16.050Z",
           "type": "turn_complete",
           "summary": "turn 30"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:28.822Z",
-          "type": "turn_complete",
-          "summary": "turn 31"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:35.521Z",
-          "type": "turn_complete",
-          "summary": "turn 32"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:39.143Z",
-          "type": "turn_complete",
-          "summary": "turn 33"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:45.539Z",
-          "type": "turn_complete",
-          "summary": "turn 34"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:53.584Z",
-          "type": "turn_complete",
-          "summary": "turn 35"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:03.114Z",
-          "type": "turn_complete",
-          "summary": "turn 36"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:09.472Z",
-          "type": "turn_complete",
-          "summary": "turn 37"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:13.049Z",
-          "type": "turn_complete",
-          "summary": "turn 38"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:17.200Z",
-          "type": "turn_complete",
-          "summary": "turn 39"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:20.031Z",
-          "type": "turn_complete",
-          "summary": "turn 40"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:30.348Z",
-          "type": "turn_complete",
-          "summary": "turn 41"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:52.969Z",
-          "type": "turn_complete",
-          "summary": "turn 42"
         }
       ],
-      "tokensPerSecond": 46.5,
-      "currentTurn": 42,
+      "tokensPerSecond": 58.7,
+      "currentTurn": 30,
       "progressPct": 100
     },
     {
       "name": "builder-1",
       "capability": "builder",
-      "task": "Add rolling per-game match stats features to the NRL prediction pipeline.\n\n## Context\n\nThe NRL.com API provides team-level stats per game (completion rate, line breaks, tackle breaks, errors, etc.) stored in `data/processed/match_stats.parquet`. We want to compute rolling averages of these stats and use them as predictive features. This captures \"process quality\" (how a team is actually playing) vs our current \"outcome-based\" features (win/loss streaks).\n\nThe match_stats.parquet schema has columns: year, round, home_team, away_team, home_score, away_score, plus home_* and away_* for each stat (e.g. home_completion_rate, away_completion_rate, home_line_breaks, away_line_breaks, etc.). ~2000+ rows covering 2015-2026.\n\n## File Ownership (strict — no exceptions)\n| Builder | Owns (exclusive write access) |\n|---------|-------------------------------|\n| Builder 1 | pipelines/v4.py, predict_round.py, refresh_week.py |\n\n## Builder 1: All changes (3 files)\n\n### Change 1: pipelines/v4.py — Add compute_rolling_match_stats_features()\n\nAdd a new function `compute_rolling_match_stats_features(matches, match_stats_df)` near the end of the file (before `build_v4_feature_matrix`).\n\nLogic:\n1. Takes the main matches DataFrame and the match_stats DataFrame\n2. If match_stats_df is None or empty, print a warning and return matches unchanged\n3. Build a per-team match log from match_stats (each row becomes two entries: one for home team, one for away team with stats from their perspective). Key stats to track:\n   - completion_rate, line_breaks, tackle_breaks, errors, missed_tackles\n   - all_run_metres, possession_pct, effective_tackle_pct, post_contact_metres, offloads\n4. Sort by date (join match_stats with matches on year+round+home_team+away_team to get dates)\n5. For each team, compute rolling averages over windows of 3 and 5 games using ONLY prior matches (no look-ahead)\n6. Merge back onto the main matches DataFrame as:\n   - `home_ms_{stat}_{window}` (e.g. home_ms_completion_rate_3)\n   - `away_ms_{stat}_{window}` (e.g. away_ms_completion_rate_3)  \n   - `ms_diff_{stat}_{window}` = home - away differential\n7. Print summary: how many features added, coverage percentage\n\nThe stats to compute rolling averages for (10 stats × 2 windows × 3 cols = 60 new features):\n```\nROLLING_MATCH_STATS = [\n    \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n    \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n]\nROLLING_WINDOWS = [3, 5]\n```\n\nIMPORTANT implementation detail: the team log must normalize stats so that each row represents ONE team's performance. From a match_stats row where team X is home:\n- X's stats = home_* columns\n- From a match_stats row where team X is away:\n- X's stats = away_* columns\n\nThen for each match in the main matches DataFrame, look up each team's rolling avg from their prior games.\n\n### Change 2: predict_round.py — Integrate new features\n\na) Add new feature column names to the FEATURE_COLS list. Add them in a new section after the existing V4 features comment block. The pattern is:\n```python\n    # V4 Rolling match stats features (60)\n    *[f\"home_ms_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n    *[f\"away_ms_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n    *[f\"ms_diff_{s}_{w}\" for w in [3, 5] for s in [\n        \"completion_rate\", \"line_breaks\", \"tackle_breaks\", \"errors\", \"missed_tackles\",\n        \"all_run_metres\", \"possession_pct\", \"effective_tackle_pct\", \"post_contact_metres\", \"offloads\",\n    ]],\n```\n\nb) In `load_historical_data()`, add loading of match_stats.parquet:\n```python\n    match_stats_path = PROCESSED_DIR / \"match_stats.parquet\"\n    if match_stats_path.exists():\n        match_stats = pd.read_parquet(match_stats_path)\n    else:\n        print(\"  WARNING: match_stats.parquet not found — running without rolling match stats\")\n        match_stats = None\n```\nUpdate the return statement to include match_stats (return matches, ladders, odds, match_stats).\n\nc) In `build_features()`, update the function signature to accept match_stats parameter, and add the call:\n```python\n    all_matches = v4.compute_rolling_match_stats_features(all_matches, match_stats)\n```\nAdd this call AFTER the existing v4 feature calls (after compute_v4_engineered_features).\n\nd) Update ALL call sites of `load_historical_data()` and `build_features()` in main() to pass the new parameter. Search for every place these functions are called and update them. There are at least 2 call sites for each in the auto mode and manual mode branches.\n\n### Change 3: refresh_week.py — Add match stats scraping step\n\nAdd a new step between the existing steps. After step1_scrape_round (which scrapes match results) and before step2_update_matches, add a step that:\n\n1. Imports fetch_round_match_stats from scraping.nrl_match_stats\n2. Calls fetch_round_match_stats(year, round_num) to get stats for the just-completed round\n3. If stats are returned, loads existing match_stats.parquet, removes any existing rows for this year+round (idempotent), appends new rows, and saves back\n4. Prints summary of what was added\n\nAdd this as a new function `step_scrape_match_stats(year, round_num)` and call it in main() after step1 results are available. Use a step number like \"STEP 1b\" to avoid renumbering all existing steps.\n\n## Acceptance Criteria\n- `python3 -c \"from pipelines.v4 import compute_rolling_match_stats_features; print('OK')\"` succeeds\n- `python3 -c \"from predict_round import FEATURE_COLS; ms_feats = [f for f in FEATURE_COLS if 'ms_' in f]; print(f'{len(ms_feats)} match stat features'); assert len(ms_feats) == 60\"` succeeds\n- `python3 -c \"from predict_round import load_historical_data; result = load_historical_data(); print(f'Returns {len(result)} items'); assert len(result) == 4\"` succeeds (returns 4-tuple)\n- refresh_week.py has a step that scrapes match stats\n- No syntax errors in any modified file\n\n## Git commit message\nfeat: add rolling match stats features (completion, line breaks, tackle breaks, etc.)\n\nIntegrates NRL.com per-game team stats as rolling 3/5-game average features.\n60 new features capturing team process quality: completion rate, line breaks,\ntackle breaks, errors, missed tackles, run metres, possession, tackle\nefficiency, post-contact metres, and offloads.\n — focus on: pipelines/v4.py, predict_round.py, refresh_week.py",
+      "task": "## Builder 1: Scraper + Features + Prediction Integration\n\n### Part A: scraping/nrl_player_stats.py (NEW FILE)\nCreate a scraper for per-player match stats. Follow the pattern in `scraping/nrl_match_stats.py`:\n- `fetch_round_player_stats(year, round_num, delay=0.3)` — fetch all player stats for a round via the match centre API\n- `fetch_season_player_stats(year)` — all rounds for a season\n- `backfill_all_player_stats(start_year=2015, end_year=2026)` — bulk scrape\n- For each completed match in a round:\n  1. Get `matchCentreUrl` from the draw API\n  2. Fetch `{NRL_API_BASE}{matchCentreUrl}data`\n  3. Extract `data['stats']['players']['homeTeam']` and `data['stats']['players']['awayTeam']`\n  4. Each player entry has `playerId` plus ~58 stat fields (allRunMetres, allRuns, tacklesMade, lineBreaks, tackleBreaks, tryAssists, fantasyPointsTotal, minutesPlayed, errors, missedTackles, offloads, postContactMetres, etc.)\n  5. Flatten into rows: year, round, match_id, team, player_id, player_position (from jersey number mapping), is_starter (jersey <= 13), plus all stat fields\n- Save to `data/processed/player_match_stats.parquet`\n- Include a `__main__` block for standalone execution: `python -m scraping.nrl_player_stats`\n- Use the team name standardisation from `scraping/nrl_match_stats.py` (TEAM_MAP dict)\n- Also get player name and jersey number from the homeTeam/awayTeam.players list in the main match data (NOT the stats section — the stats section only has playerId). Merge lineup info with stats by playerId.\n\nKey stat fields to extract (at minimum): allRunMetres, allRuns, tacklesMade, tackleBreaks, lineBreaks, lineBreakAssists, tryAssists, tries, fantasyPointsTotal, minutesPlayed, errors, handlingErrors, missedTackles, offloads, postContactMetres, kicks, kickMetres, penalties, ineffectiveTackles, passes, receipts, dummyHalfRuns\n\n### Part B: pipelines/v4.py — add compute_player_form_features()\nAdd a new function `compute_player_form_features(matches, player_stats_df)` following the pattern of `compute_rolling_match_stats_features()`. This function:\n\n1. Loads player_match_stats.parquet\n2. For each match, identifies the starting spine (jersey 1=FB, 6=FE, 7=HB, 9=HK) and starting 13\n3. Computes rolling 3/5-game averages per player using ONLY prior games (no look-ahead)\n4. Aggregates into match-level features:\n\n**Spine form features (24):**\n- `{home,away}_spine_run_metres_{3,5}` — avg of 4 spine players' rolling run metres\n- `{home,away}_spine_line_breaks_{3,5}` — avg line breaks\n- `{home,away}_spine_tackle_breaks_{3,5}` — avg tackle breaks  \n- `{home,away}_spine_try_assists_{3,5}` — avg try assists\n- Plus `spine_diff_*` for each (home minus away) = 8 diff features\n\n**Starting 13 quality features (12):**\n- `{home,away}_squad_fantasy_{3,5}` — avg of starting 13's rolling fantasy points\n- `{home,away}_squad_minutes_{3,5}` — avg minutes (fitness/experience proxy)\n- Plus `squad_diff_*` diffs = 4 diff features\n\n**Squad disruption features (6):**\n- `{home,away}_spine_changes` — number of spine positions with different player vs last game (0-4)\n- `spine_changes_diff` — home minus away\n- `{home,away}_squad_turnover` — number of starting 13 slots with different player vs last game\n- `squad_turnover_diff`\n\nThe function must handle NaN gracefully when players have no history (early season, debuts).\n\n### Part C: predict_round.py — integration\n1. Add player_match_stats loading in `load_historical_data()` (similar to match_stats loading around line 348)\n2. Pass player_match_stats to `build_features()` and on to `compute_player_form_features()`\n3. Add the new feature column names to the V4_FEATURE_COLS list (around line 90)\n4. Add them to the appropriate section alongside the existing `# V4 Rolling match stats features (60)` comment\n\n### Acceptance criteria\n- `python -m scraping.nrl_player_stats` runs and creates player_match_stats.parquet (DON'T actually run the full backfill, just verify the module imports and the single-round fetch works for 2026 R1)\n- The new features appear in the feature DataFrame when build_features() is called\n- No look-ahead bias: rolling averages only use prior games\n- All new feature columns have the naming convention: `{home,away}_spine_*`, `{home,away}_squad_*`, `spine_diff_*`, `squad_diff_*`, `spine_changes_diff`, `squad_turnover_diff`",
       "status": "merge_failed",
       "exitCode": 0,
-      "startedAt": "2026-03-09T10:30:08.990Z",
-      "completedAt": "2026-03-09T10:35:36.715Z",
+      "startedAt": "2026-03-10T14:06:34.247Z",
+      "completedAt": "2026-03-10T14:21:00.544Z",
       "usage": {
-        "input": 65,
-        "output": 14194,
-        "cacheRead": 3265998,
-        "cacheWrite": 65371,
-        "cost": 1.43804565,
-        "contextTokens": 66197,
-        "turns": 63
+        "input": 54,
+        "output": 48465,
+        "cacheRead": 3955962,
+        "cacheWrite": 107757,
+        "cost": 2.3180143499999994,
+        "contextTokens": 108722,
+        "turns": 52
       },
       "model": "claude-sonnet-4-6",
       "files": [
-        "pipelines/v4.py",
-        "predict_round.py",
-        "refresh_week.py"
+        "scraping/nrl_player_stats.py",
+        "scraping/nrl_match_stats.py",
+        "data/processed/player_match_stats.parquet",
+        "homeTeam/awayTeam.players",
+        "pipelines/v4.py"
       ],
       "worktree": {
         "path": "/root/NRL-Predict/.pi-swarm/worktrees/builder-1",
-        "branch": "swarm/builder-1-mmj1i6uo"
+        "branch": "swarm/builder-1-mmkoodtt"
       },
-      "lastOutput": "ed` into the worktree. This symlink is not committed (it's untracked). The actual prod code will work fine because it runs from the main project root.\n- Rolling stats coverage will be limited by `match_stats.parquet` data density (568 rows, 2020-2022 era). NaN-fill behaviour is standard: the model's median fill in `fill_missing()` handles sparse windows gracefully.\n- The `data/processed` symlink created in the worktree was not staged for commit (appears as untracked) — no risk of merge conflict.",
+      "lastOutput": "ch stats features (60)\" block\n  4. Both `build_features(...)` call sites in `main()` need `player_stats` passed\n\n- **Coverage:** With only R1 2026 data, coverage is 0% (R1 has no prior games). Full backfill (2015–2026) will give ~80-90% coverage (matches round 3+). Run: `python -m scraping.nrl_player_stats --start-year 2015 --end-year 2026`\n\n- **No look-ahead bias confirmed:** rolling avg uses `p_log.iloc[:i]` (strictly prior rows), so debut players and early-season matches correctly return NaN.",
       "filesModified": [
         {
           "path": ".pi-swarm/scout-context.md",
-          "linesAdded": 150,
-          "linesRemoved": 0
+          "linesAdded": 92,
+          "linesRemoved": 111
         },
         {
           "path": ".pi/extensions/swarm-guard.ts",
-          "linesAdded": 167,
-          "linesRemoved": 0
+          "linesAdded": 5,
+          "linesRemoved": 5
         },
         {
           "path": ".pi/extensions/swarm-mail.ts",
-          "linesAdded": 149,
-          "linesRemoved": 0
+          "linesAdded": 2,
+          "linesRemoved": 2
         },
         {
-          "path": ".pi/settings.json",
-          "linesAdded": 5,
-          "linesRemoved": 0
-        },
-        {
-          "path": "data/processed",
+          "path": "data/cache/player_stats/player_stats_2026.json",
           "linesAdded": 1,
           "linesRemoved": 0
         },
         {
           "path": "pipelines/v4.py",
-          "linesAdded": 161,
+          "linesAdded": 350,
           "linesRemoved": 0
         },
         {
-          "path": "predict_round.py",
-          "linesAdded": 30,
-          "linesRemoved": 7
-        },
-        {
-          "path": "refresh_week.py",
-          "linesAdded": 37,
+          "path": "scraping/nrl_player_stats.py",
+          "linesAdded": 584,
           "linesRemoved": 0
         }
       ],
       "activityLog": [
         {
-          "timestamp": "2026-03-09T10:33:47.266Z",
+          "timestamp": "2026-03-10T14:17:33.684Z",
+          "type": "turn_complete",
+          "summary": "turn 33"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:39.755Z",
+          "type": "turn_complete",
+          "summary": "turn 34"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:43.206Z",
+          "type": "turn_complete",
+          "summary": "turn 35"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:47.241Z",
+          "type": "turn_complete",
+          "summary": "turn 36"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:51.997Z",
+          "type": "turn_complete",
+          "summary": "turn 37"
+        },
+        {
+          "timestamp": "2026-03-10T14:17:57.017Z",
+          "type": "turn_complete",
+          "summary": "turn 38"
+        },
+        {
+          "timestamp": "2026-03-10T14:18:02.388Z",
+          "type": "turn_complete",
+          "summary": "turn 39"
+        },
+        {
+          "timestamp": "2026-03-10T14:18:21.946Z",
+          "type": "turn_complete",
+          "summary": "turn 40"
+        },
+        {
+          "timestamp": "2026-03-10T14:18:39.728Z",
+          "type": "turn_complete",
+          "summary": "turn 41"
+        },
+        {
+          "timestamp": "2026-03-10T14:18:45.433Z",
+          "type": "turn_complete",
+          "summary": "turn 42"
+        },
+        {
+          "timestamp": "2026-03-10T14:18:53.998Z",
+          "type": "turn_complete",
+          "summary": "turn 43"
+        },
+        {
+          "timestamp": "2026-03-10T14:19:13.007Z",
           "type": "turn_complete",
           "summary": "turn 44"
         },
         {
-          "timestamp": "2026-03-09T10:33:50.853Z",
+          "timestamp": "2026-03-10T14:19:22.905Z",
           "type": "turn_complete",
           "summary": "turn 45"
         },
         {
-          "timestamp": "2026-03-09T10:33:53.860Z",
+          "timestamp": "2026-03-10T14:19:29.711Z",
           "type": "turn_complete",
           "summary": "turn 46"
         },
         {
-          "timestamp": "2026-03-09T10:33:58.204Z",
+          "timestamp": "2026-03-10T14:19:37.426Z",
           "type": "turn_complete",
           "summary": "turn 47"
         },
         {
-          "timestamp": "2026-03-09T10:34:01.433Z",
+          "timestamp": "2026-03-10T14:19:48.480Z",
           "type": "turn_complete",
           "summary": "turn 48"
         },
         {
-          "timestamp": "2026-03-09T10:34:11.821Z",
+          "timestamp": "2026-03-10T14:20:01.777Z",
           "type": "turn_complete",
           "summary": "turn 49"
         },
         {
-          "timestamp": "2026-03-09T10:34:16.522Z",
+          "timestamp": "2026-03-10T14:20:23.391Z",
           "type": "turn_complete",
           "summary": "turn 50"
         },
         {
-          "timestamp": "2026-03-09T10:34:21.927Z",
+          "timestamp": "2026-03-10T14:20:39.476Z",
           "type": "turn_complete",
           "summary": "turn 51"
         },
         {
-          "timestamp": "2026-03-09T10:34:24.871Z",
+          "timestamp": "2026-03-10T14:21:00.498Z",
           "type": "turn_complete",
           "summary": "turn 52"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:33.563Z",
-          "type": "turn_complete",
-          "summary": "turn 53"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:37.865Z",
-          "type": "turn_complete",
-          "summary": "turn 54"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:39.960Z",
-          "type": "turn_complete",
-          "summary": "turn 55"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:43.065Z",
-          "type": "turn_complete",
-          "summary": "turn 56"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:45.669Z",
-          "type": "turn_complete",
-          "summary": "turn 57"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:52.037Z",
-          "type": "turn_complete",
-          "summary": "turn 58"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:56.391Z",
-          "type": "turn_complete",
-          "summary": "turn 59"
-        },
-        {
-          "timestamp": "2026-03-09T10:34:59.092Z",
-          "type": "turn_complete",
-          "summary": "turn 60"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:06.798Z",
-          "type": "turn_complete",
-          "summary": "turn 61"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:11.540Z",
-          "type": "turn_complete",
-          "summary": "turn 62"
-        },
-        {
-          "timestamp": "2026-03-09T10:35:36.689Z",
-          "type": "turn_complete",
-          "summary": "turn 63"
         }
       ],
-      "tokensPerSecond": 43.3,
-      "currentTurn": 63,
+      "tokensPerSecond": 55.9,
+      "currentTurn": 52,
       "progressPct": 100
     },
     {
       "name": "reviewer-1",
       "capability": "reviewer",
-      "task": "Review all changes for: Add rolling per-game match stats features to the NRL prediction pipeline.\n\n## Context\n\nThe NRL.com API provides team-level stats per game (completion rate, line breaks, tackle breaks, errors, etc.) stored in `data/processed/match_stats.parquet`. We want to compute rolling averages of these stats and. Check correctness, style, tests, and cross-cutting consistency.",
+      "task": "Review all changes across 2 builders for: Add player-level form features to the NRL prediction model.\n\n## Context\nThe NRL.com match centre API provides per-player stats at `stats.players.homeTeam` / `stats.players.awayTeam` with 59 fields per player per game. Available from 2015 onwards. The existing scraper `scraping/nrl_match_stats.py` al. Check cross-cutting consistency, correctness, and integration.",
       "status": "completed",
       "exitCode": 0,
-      "startedAt": "2026-03-09T10:35:55.164Z",
-      "completedAt": "2026-03-09T10:41:20.694Z",
+      "startedAt": "2026-03-10T14:21:03.147Z",
+      "completedAt": "2026-03-10T14:25:43.228Z",
       "usage": {
-        "input": 37,
-        "output": 17031,
-        "cacheRead": 1220447,
-        "cacheWrite": 49564,
-        "cost": 0.8075751000000001,
-        "contextTokens": 50592,
-        "turns": 35
+        "input": 32,
+        "output": 12145,
+        "cacheRead": 1055086,
+        "cacheWrite": 46350,
+        "cost": 0.6726093,
+        "contextTokens": 48692,
+        "turns": 30
       },
       "model": "claude-sonnet-4-6",
       "worktree": null,
-      "lastOutput": "wired. Non-blocking.\n\n2. **Window sizes reduced from config**: `config/feature_config.yaml` specifies `[3,5,8,10]` and v3 form uses `[3,5,8]`. The new implementation uses only `[3,5]`. Given sparse data coverage this is pragmatic, but diverges from the config spec. Worth aligning with config later.\n\n3. **No tests created**: Builder 3 (tests) appears not to have been dispatched. No `tests/` directory exists in the project. Manual functional verification passes, but formal test coverage is absent.",
+      "lastOutput": "mment \"lineBreaks + runMetres are most signal-rich\". Fix: use explicit lookup — `next((c for c in attack_cols if \"linebreak\" in c.lower()), None)` and similarly for runMetres, then pass those directly instead of using a positional slice.\n\n5. **`tackleBreaks` double-classified** — `_detect_stat_columns` returns `tackleBreaks` in both `attack_cols` and `defence_cols`. Add an exclusion: if a column is already in `attack_cols`, remove it from `defence_cols` (or vice versa), or use priority ordering.",
       "activityLog": [
         {
-          "timestamp": "2026-03-09T10:38:02.586Z",
+          "timestamp": "2026-03-10T14:21:55.556Z",
+          "type": "turn_complete",
+          "summary": "turn 11"
+        },
+        {
+          "timestamp": "2026-03-10T14:22:04.597Z",
+          "type": "turn_complete",
+          "summary": "turn 12"
+        },
+        {
+          "timestamp": "2026-03-10T14:22:17.852Z",
+          "type": "turn_complete",
+          "summary": "turn 13"
+        },
+        {
+          "timestamp": "2026-03-10T14:22:26.710Z",
+          "type": "turn_complete",
+          "summary": "turn 14"
+        },
+        {
+          "timestamp": "2026-03-10T14:22:37.445Z",
+          "type": "turn_complete",
+          "summary": "turn 15"
+        },
+        {
+          "timestamp": "2026-03-10T14:22:47.448Z",
           "type": "turn_complete",
           "summary": "turn 16"
         },
         {
-          "timestamp": "2026-03-09T10:38:27.472Z",
+          "timestamp": "2026-03-10T14:22:49.364Z",
           "type": "turn_complete",
           "summary": "turn 17"
         },
         {
-          "timestamp": "2026-03-09T10:38:33.045Z",
+          "timestamp": "2026-03-10T14:22:55.989Z",
           "type": "turn_complete",
           "summary": "turn 18"
         },
         {
-          "timestamp": "2026-03-09T10:38:45.872Z",
+          "timestamp": "2026-03-10T14:23:05.611Z",
           "type": "turn_complete",
           "summary": "turn 19"
         },
         {
-          "timestamp": "2026-03-09T10:38:53.019Z",
+          "timestamp": "2026-03-10T14:23:22.458Z",
           "type": "turn_complete",
           "summary": "turn 20"
         },
         {
-          "timestamp": "2026-03-09T10:38:57.374Z",
+          "timestamp": "2026-03-10T14:23:33.060Z",
           "type": "turn_complete",
           "summary": "turn 21"
         },
         {
-          "timestamp": "2026-03-09T10:39:01.589Z",
+          "timestamp": "2026-03-10T14:23:43.353Z",
           "type": "turn_complete",
           "summary": "turn 22"
         },
         {
-          "timestamp": "2026-03-09T10:39:04.325Z",
+          "timestamp": "2026-03-10T14:23:59.073Z",
           "type": "turn_complete",
           "summary": "turn 23"
         },
         {
-          "timestamp": "2026-03-09T10:39:13.577Z",
+          "timestamp": "2026-03-10T14:24:10.484Z",
           "type": "turn_complete",
           "summary": "turn 24"
         },
         {
-          "timestamp": "2026-03-09T10:39:30.730Z",
+          "timestamp": "2026-03-10T14:24:18.196Z",
           "type": "turn_complete",
           "summary": "turn 25"
         },
         {
-          "timestamp": "2026-03-09T10:39:37.129Z",
+          "timestamp": "2026-03-10T14:24:34.507Z",
           "type": "turn_complete",
           "summary": "turn 26"
         },
         {
-          "timestamp": "2026-03-09T10:39:40.838Z",
+          "timestamp": "2026-03-10T14:24:42.727Z",
           "type": "turn_complete",
           "summary": "turn 27"
         },
         {
-          "timestamp": "2026-03-09T10:39:46.848Z",
+          "timestamp": "2026-03-10T14:24:46.192Z",
           "type": "turn_complete",
           "summary": "turn 28"
         },
         {
-          "timestamp": "2026-03-09T10:39:53.004Z",
+          "timestamp": "2026-03-10T14:24:53.711Z",
           "type": "turn_complete",
           "summary": "turn 29"
         },
         {
-          "timestamp": "2026-03-09T10:40:00.422Z",
+          "timestamp": "2026-03-10T14:25:43.205Z",
           "type": "turn_complete",
           "summary": "turn 30"
-        },
-        {
-          "timestamp": "2026-03-09T10:40:12.179Z",
-          "type": "turn_complete",
-          "summary": "turn 31"
-        },
-        {
-          "timestamp": "2026-03-09T10:40:18.197Z",
-          "type": "turn_complete",
-          "summary": "turn 32"
-        },
-        {
-          "timestamp": "2026-03-09T10:40:31.149Z",
-          "type": "turn_complete",
-          "summary": "turn 33"
-        },
-        {
-          "timestamp": "2026-03-09T10:40:57.008Z",
-          "type": "turn_complete",
-          "summary": "turn 34"
-        },
-        {
-          "timestamp": "2026-03-09T10:41:20.671Z",
-          "type": "turn_complete",
-          "summary": "turn 35"
         }
       ],
-      "tokensPerSecond": 52.3,
-      "currentTurn": 35,
+      "tokensPerSecond": 43.4,
+      "currentTurn": 30,
       "progressPct": 95
     }
   ],
   "mergeResults": [
     {
-      "branch": "swarm/builder-2-mmj1i5qy",
+      "branch": "swarm/builder-2-mmkoocym",
       "agentName": "builder-2",
       "success": true,
       "conflicts": []
     },
     {
-      "branch": "swarm/builder-1-mmj1i6uo",
+      "branch": "swarm/builder-1-mmkoodtt",
       "agentName": "builder-1",
       "success": false,
       "conflicts": [
-        ".pi/extensions/swarm-guard.ts",
-        ".pi/extensions/swarm-mail.ts",
-        "pipelines/v4.py",
-        "predict_round.py",
-        "refresh_week.py"
+        ".pi/extensions/swarm-guard.ts"
       ],
-      "error": "Merge conflicts in 5 file(s)"
+      "error": "Merge conflicts in 1 file(s)"
     }
   ],
   "totalUsage": {
-    "input": 416,
-    "output": 55829,
-    "cacheRead": 6979010,
-    "cacheWrite": 218915,
-    "cost": 3.4103766500000003,
+    "input": 332,
+    "output": 117322,
+    "cacheRead": 7510977,
+    "cacheWrite": 307010,
+    "cost": 4.827784099999999,
     "contextTokens": 0,
-    "turns": 161
+    "turns": 128
   },
-  "planReasoning": "Complex task (score: 17.5, 3 files, 3 dirs). 1 scout(s), 2 builder(s), 1 reviewer.",
-  "updatedAt": "2026-03-09T10:41:22.242Z",
+  "planReasoning": "Explicit 2-builder plan detected (score: 22.0). Honouring user-specified structure.",
+  "updatedAt": "2026-03-10T14:25:44.801Z",
   "phases": [
     {
       "name": "phase-1",
       "capability": "scout",
-      "startedAt": "2026-03-09T10:28:32.516Z",
-      "completedAt": "2026-03-09T10:30:04.720Z",
+      "startedAt": "2026-03-10T14:04:21.160Z",
+      "completedAt": "2026-03-10T14:06:31.349Z",
       "agents": [
         "scout-1"
       ]
@@ -648,8 +599,8 @@
     {
       "name": "phase-2",
       "capability": "builder",
-      "startedAt": "2026-03-09T10:30:08.983Z",
-      "completedAt": "2026-03-09T10:35:53.057Z",
+      "startedAt": "2026-03-10T14:06:34.238Z",
+      "completedAt": "2026-03-10T14:21:00.646Z",
       "agents": [
         "builder-2",
         "builder-1"
@@ -658,8 +609,8 @@
     {
       "name": "phase-3",
       "capability": "reviewer",
-      "startedAt": "2026-03-09T10:35:54.058Z",
-      "completedAt": "2026-03-09T10:41:20.864Z",
+      "startedAt": "2026-03-10T14:21:01.646Z",
+      "completedAt": "2026-03-10T14:25:43.426Z",
       "agents": [
         "reviewer-1"
       ]
@@ -667,920 +618,908 @@
   ],
   "activityFeed": [
     {
-      "timestamp": "2026-03-09T10:34:45.669Z",
+      "timestamp": "2026-03-10T14:17:56.454Z",
       "type": "turn_complete",
-      "summary": "turn 57",
-      "agent": "builder-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:34:52.037Z",
-      "type": "turn_complete",
-      "summary": "turn 58",
-      "agent": "builder-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:34:53.584Z",
-      "type": "turn_complete",
-      "summary": "turn 35",
+      "summary": "turn 26",
       "agent": "builder-2"
     },
     {
-      "timestamp": "2026-03-09T10:34:56.391Z",
-      "type": "turn_complete",
-      "summary": "turn 59",
-      "agent": "builder-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:34:59.092Z",
-      "type": "turn_complete",
-      "summary": "turn 60",
-      "agent": "builder-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:03.114Z",
-      "type": "turn_complete",
-      "summary": "turn 36",
-      "agent": "builder-2"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:06.798Z",
-      "type": "turn_complete",
-      "summary": "turn 61",
-      "agent": "builder-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:09.472Z",
-      "type": "turn_complete",
-      "summary": "turn 37",
-      "agent": "builder-2"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:11.540Z",
-      "type": "turn_complete",
-      "summary": "turn 62",
-      "agent": "builder-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:13.049Z",
+      "timestamp": "2026-03-10T14:17:57.017Z",
       "type": "turn_complete",
       "summary": "turn 38",
-      "agent": "builder-2"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:17.200Z",
-      "type": "turn_complete",
-      "summary": "turn 39",
-      "agent": "builder-2"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:20.031Z",
-      "type": "turn_complete",
-      "summary": "turn 40",
-      "agent": "builder-2"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:30.348Z",
-      "type": "turn_complete",
-      "summary": "turn 41",
-      "agent": "builder-2"
-    },
-    {
-      "timestamp": "2026-03-09T10:35:36.689Z",
-      "type": "turn_complete",
-      "summary": "turn 63",
       "agent": "builder-1"
     },
     {
-      "timestamp": "2026-03-09T10:35:52.969Z",
+      "timestamp": "2026-03-10T14:18:02.388Z",
       "type": "turn_complete",
-      "summary": "turn 42",
+      "summary": "turn 39",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:18:14.996Z",
+      "type": "turn_complete",
+      "summary": "turn 27",
       "agent": "builder-2"
     },
     {
-      "timestamp": "2026-03-09T10:36:00.404Z",
+      "timestamp": "2026-03-10T14:18:21.946Z",
+      "type": "turn_complete",
+      "summary": "turn 40",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:18:39.728Z",
+      "type": "turn_complete",
+      "summary": "turn 41",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:18:45.433Z",
+      "type": "turn_complete",
+      "summary": "turn 42",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:18:48.590Z",
+      "type": "turn_complete",
+      "summary": "turn 28",
+      "agent": "builder-2"
+    },
+    {
+      "timestamp": "2026-03-10T14:18:52.675Z",
+      "type": "turn_complete",
+      "summary": "turn 29",
+      "agent": "builder-2"
+    },
+    {
+      "timestamp": "2026-03-10T14:18:53.998Z",
+      "type": "turn_complete",
+      "summary": "turn 43",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:19:13.007Z",
+      "type": "turn_complete",
+      "summary": "turn 44",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:19:16.050Z",
+      "type": "turn_complete",
+      "summary": "turn 30",
+      "agent": "builder-2"
+    },
+    {
+      "timestamp": "2026-03-10T14:19:22.905Z",
+      "type": "turn_complete",
+      "summary": "turn 45",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:19:29.711Z",
+      "type": "turn_complete",
+      "summary": "turn 46",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:19:37.426Z",
+      "type": "turn_complete",
+      "summary": "turn 47",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:19:48.480Z",
+      "type": "turn_complete",
+      "summary": "turn 48",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:20:01.777Z",
+      "type": "turn_complete",
+      "summary": "turn 49",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:20:23.391Z",
+      "type": "turn_complete",
+      "summary": "turn 50",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:20:39.476Z",
+      "type": "turn_complete",
+      "summary": "turn 51",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:21:00.498Z",
+      "type": "turn_complete",
+      "summary": "turn 52",
+      "agent": "builder-1"
+    },
+    {
+      "timestamp": "2026-03-10T14:21:11.757Z",
       "type": "turn_complete",
       "summary": "turn 1",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:02.622Z",
+      "timestamp": "2026-03-10T14:21:13.860Z",
       "type": "turn_complete",
       "summary": "turn 2",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:06.281Z",
+      "timestamp": "2026-03-10T14:21:17.628Z",
       "type": "turn_complete",
       "summary": "turn 3",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:11.213Z",
+      "timestamp": "2026-03-10T14:21:23.877Z",
       "type": "turn_complete",
       "summary": "turn 4",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:14.521Z",
+      "timestamp": "2026-03-10T14:21:26.779Z",
       "type": "turn_complete",
       "summary": "turn 5",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:19.236Z",
+      "timestamp": "2026-03-10T14:21:34.363Z",
       "type": "turn_complete",
       "summary": "turn 6",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:21.634Z",
+      "timestamp": "2026-03-10T14:21:38.550Z",
       "type": "turn_complete",
       "summary": "turn 7",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:25.987Z",
+      "timestamp": "2026-03-10T14:21:42.819Z",
       "type": "turn_complete",
       "summary": "turn 8",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:31.084Z",
+      "timestamp": "2026-03-10T14:21:46.773Z",
       "type": "turn_complete",
       "summary": "turn 9",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:35.454Z",
+      "timestamp": "2026-03-10T14:21:51.201Z",
       "type": "turn_complete",
       "summary": "turn 10",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:38.691Z",
+      "timestamp": "2026-03-10T14:21:55.556Z",
       "type": "turn_complete",
       "summary": "turn 11",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:49.089Z",
+      "timestamp": "2026-03-10T14:22:04.597Z",
       "type": "turn_complete",
       "summary": "turn 12",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:36:56.618Z",
+      "timestamp": "2026-03-10T14:22:17.852Z",
       "type": "turn_complete",
       "summary": "turn 13",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:37:17.019Z",
+      "timestamp": "2026-03-10T14:22:26.710Z",
       "type": "turn_complete",
       "summary": "turn 14",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:37:51.555Z",
+      "timestamp": "2026-03-10T14:22:37.445Z",
       "type": "turn_complete",
       "summary": "turn 15",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:38:02.586Z",
+      "timestamp": "2026-03-10T14:22:47.448Z",
       "type": "turn_complete",
       "summary": "turn 16",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:38:27.472Z",
+      "timestamp": "2026-03-10T14:22:49.364Z",
       "type": "turn_complete",
       "summary": "turn 17",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:38:33.045Z",
+      "timestamp": "2026-03-10T14:22:55.989Z",
       "type": "turn_complete",
       "summary": "turn 18",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:38:45.872Z",
+      "timestamp": "2026-03-10T14:23:05.611Z",
       "type": "turn_complete",
       "summary": "turn 19",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:38:53.019Z",
+      "timestamp": "2026-03-10T14:23:22.458Z",
       "type": "turn_complete",
       "summary": "turn 20",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:38:57.374Z",
+      "timestamp": "2026-03-10T14:23:33.060Z",
       "type": "turn_complete",
       "summary": "turn 21",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:01.589Z",
+      "timestamp": "2026-03-10T14:23:43.353Z",
       "type": "turn_complete",
       "summary": "turn 22",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:04.325Z",
+      "timestamp": "2026-03-10T14:23:59.073Z",
       "type": "turn_complete",
       "summary": "turn 23",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:13.577Z",
+      "timestamp": "2026-03-10T14:24:10.484Z",
       "type": "turn_complete",
       "summary": "turn 24",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:30.730Z",
+      "timestamp": "2026-03-10T14:24:18.196Z",
       "type": "turn_complete",
       "summary": "turn 25",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:37.129Z",
+      "timestamp": "2026-03-10T14:24:34.507Z",
       "type": "turn_complete",
       "summary": "turn 26",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:40.838Z",
+      "timestamp": "2026-03-10T14:24:42.727Z",
       "type": "turn_complete",
       "summary": "turn 27",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:46.848Z",
+      "timestamp": "2026-03-10T14:24:46.192Z",
       "type": "turn_complete",
       "summary": "turn 28",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:39:53.004Z",
+      "timestamp": "2026-03-10T14:24:53.711Z",
       "type": "turn_complete",
       "summary": "turn 29",
       "agent": "reviewer-1"
     },
     {
-      "timestamp": "2026-03-09T10:40:00.422Z",
+      "timestamp": "2026-03-10T14:25:43.205Z",
       "type": "turn_complete",
       "summary": "turn 30",
-      "agent": "reviewer-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:40:12.179Z",
-      "type": "turn_complete",
-      "summary": "turn 31",
-      "agent": "reviewer-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:40:18.197Z",
-      "type": "turn_complete",
-      "summary": "turn 32",
-      "agent": "reviewer-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:40:31.149Z",
-      "type": "turn_complete",
-      "summary": "turn 33",
-      "agent": "reviewer-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:40:57.008Z",
-      "type": "turn_complete",
-      "summary": "turn 34",
-      "agent": "reviewer-1"
-    },
-    {
-      "timestamp": "2026-03-09T10:41:20.671Z",
-      "type": "turn_complete",
-      "summary": "turn 35",
       "agent": "reviewer-1"
     }
   ],
   "tokenRates": [
     {
-      "timestamp": "2026-03-09T10:28:32.517Z",
+      "timestamp": "2026-03-10T14:04:21.161Z",
       "inputTotal": 0,
       "outputTotal": 0,
       "costTotal": 0
     },
     {
-      "timestamp": "2026-03-09T10:28:38.139Z",
+      "timestamp": "2026-03-10T14:04:27.742Z",
       "inputTotal": 10,
-      "outputTotal": 493,
-      "costTotal": 0.020607500000000004
+      "outputTotal": 431,
+      "costTotal": 0.02093
     },
     {
-      "timestamp": "2026-03-09T10:28:44.050Z",
+      "timestamp": "2026-03-10T14:04:37.654Z",
       "inputTotal": 38,
-      "outputTotal": 1005,
-      "costTotal": 0.029492000000000004
+      "outputTotal": 1059,
+      "costTotal": 0.03838855
     },
     {
-      "timestamp": "2026-03-09T10:28:50.597Z",
+      "timestamp": "2026-03-10T14:04:43.295Z",
       "inputTotal": 66,
-      "outputTotal": 1542,
-      "costTotal": 0.047926550000000005
+      "outputTotal": 1545,
+      "costTotal": 0.0535957
     },
     {
-      "timestamp": "2026-03-09T10:28:55.732Z",
-      "inputTotal": 94,
-      "outputTotal": 1969,
-      "costTotal": 0.06049935000000001
+      "timestamp": "2026-03-10T14:04:48.805Z",
+      "inputTotal": 93,
+      "outputTotal": 2003,
+      "costTotal": 0.06758505000000001
     },
     {
-      "timestamp": "2026-03-09T10:29:00.968Z",
-      "inputTotal": 121,
-      "outputTotal": 2435,
-      "costTotal": 0.07648160000000001
+      "timestamp": "2026-03-10T14:04:54.781Z",
+      "inputTotal": 106,
+      "outputTotal": 2589,
+      "costTotal": 0.07522405000000001
     },
     {
-      "timestamp": "2026-03-09T10:29:08.344Z",
-      "inputTotal": 147,
-      "outputTotal": 3123,
-      "costTotal": 0.08978575000000001
+      "timestamp": "2026-03-10T14:05:00.128Z",
+      "inputTotal": 119,
+      "outputTotal": 2994,
+      "costTotal": 0.08256945000000002
     },
     {
-      "timestamp": "2026-03-09T10:29:15.508Z",
-      "inputTotal": 187,
-      "outputTotal": 3742,
-      "costTotal": 0.10829055000000003
+      "timestamp": "2026-03-10T14:05:05.989Z",
+      "inputTotal": 132,
+      "outputTotal": 3428,
+      "costTotal": 0.09019330000000002
     },
     {
-      "timestamp": "2026-03-09T10:29:25.121Z",
-      "inputTotal": 211,
-      "outputTotal": 4742,
-      "costTotal": 0.12408740000000004
+      "timestamp": "2026-03-10T14:05:11.876Z",
+      "inputTotal": 159,
+      "outputTotal": 3793,
+      "costTotal": 0.10250045000000002
     },
     {
-      "timestamp": "2026-03-09T10:29:33.467Z",
+      "timestamp": "2026-03-10T14:05:41.604Z",
+      "inputTotal": 172,
+      "outputTotal": 6792,
+      "costTotal": 0.12203310000000002
+    },
+    {
+      "timestamp": "2026-03-10T14:06:10.426Z",
+      "inputTotal": 200,
+      "outputTotal": 9939,
+      "costTotal": 0.15021525000000002
+    },
+    {
+      "timestamp": "2026-03-10T14:06:31.315Z",
+      "inputTotal": 214,
+      "outputTotal": 12009,
+      "costTotal": 0.16881125000000002
+    },
+    {
+      "timestamp": "2026-03-10T14:06:38.835Z",
+      "inputTotal": 217,
+      "outputTotal": 12101,
+      "costTotal": 0.23305400000000004
+    },
+    {
+      "timestamp": "2026-03-10T14:06:46.944Z",
+      "inputTotal": 222,
+      "outputTotal": 12586,
+      "costTotal": 0.33419090000000007
+    },
+    {
+      "timestamp": "2026-03-10T14:06:54.195Z",
+      "inputTotal": 224,
+      "outputTotal": 13061,
+      "costTotal": 0.37641545000000004
+    },
+    {
+      "timestamp": "2026-03-10T14:06:59.516Z",
+      "inputTotal": 225,
+      "outputTotal": 13278,
+      "costTotal": 0.40363370000000004
+    },
+    {
+      "timestamp": "2026-03-10T14:07:07.278Z",
+      "inputTotal": 228,
+      "outputTotal": 13848,
+      "costTotal": 0.46924610000000005
+    },
+    {
+      "timestamp": "2026-03-10T14:07:15.649Z",
+      "inputTotal": 231,
+      "outputTotal": 14529,
+      "costTotal": 0.5514176000000001
+    },
+    {
+      "timestamp": "2026-03-10T14:07:25.827Z",
       "inputTotal": 235,
-      "outputTotal": 5310,
-      "costTotal": 0.13813735000000005
+      "outputTotal": 15253,
+      "costTotal": 0.64494875
     },
     {
-      "timestamp": "2026-03-09T10:29:41.706Z",
+      "timestamp": "2026-03-10T14:07:31.442Z",
+      "inputTotal": 236,
+      "outputTotal": 15461,
+      "costTotal": 0.6801059
+    },
+    {
+      "timestamp": "2026-03-10T14:07:38.572Z",
+      "inputTotal": 237,
+      "outputTotal": 15725,
+      "costTotal": 0.71733245
+    },
+    {
+      "timestamp": "2026-03-10T14:07:45.994Z",
+      "inputTotal": 238,
+      "outputTotal": 15984,
+      "costTotal": 0.7573104500000001
+    },
+    {
+      "timestamp": "2026-03-10T14:07:52.426Z",
+      "inputTotal": 239,
+      "outputTotal": 16309,
+      "costTotal": 0.7801037
+    },
+    {
+      "timestamp": "2026-03-10T14:08:01.776Z",
+      "inputTotal": 241,
+      "outputTotal": 16593,
+      "costTotal": 0.8351789000000001
+    },
+    {
+      "timestamp": "2026-03-10T14:09:40.482Z",
+      "inputTotal": 242,
+      "outputTotal": 25505,
+      "costTotal": 0.98507795
+    },
+    {
+      "timestamp": "2026-03-10T14:09:45.951Z",
+      "inputTotal": 243,
+      "outputTotal": 25680,
+      "costTotal": 1.04500265
+    },
+    {
+      "timestamp": "2026-03-10T14:09:52.198Z",
+      "inputTotal": 245,
+      "outputTotal": 25859,
+      "costTotal": 1.09519565
+    },
+    {
+      "timestamp": "2026-03-10T14:10:01.192Z",
+      "inputTotal": 247,
+      "outputTotal": 33771,
+      "costTotal": 1.2676926499999999
+    },
+    {
+      "timestamp": "2026-03-10T14:10:17.218Z",
+      "inputTotal": 248,
+      "outputTotal": 34705,
+      "costTotal": 1.3331374999999999
+    },
+    {
+      "timestamp": "2026-03-10T14:12:49.946Z",
+      "inputTotal": 249,
+      "outputTotal": 46268,
+      "costTotal": 1.5293654
+    },
+    {
+      "timestamp": "2026-03-10T14:12:57.077Z",
+      "inputTotal": 251,
+      "outputTotal": 46452,
+      "costTotal": 1.61863625
+    },
+    {
+      "timestamp": "2026-03-10T14:13:47.313Z",
+      "inputTotal": 252,
+      "outputTotal": 49166,
+      "costTotal": 1.684817
+    },
+    {
+      "timestamp": "2026-03-10T14:13:54.480Z",
+      "inputTotal": 253,
+      "outputTotal": 64477,
+      "costTotal": 1.9395332
+    },
+    {
+      "timestamp": "2026-03-10T14:14:03.775Z",
+      "inputTotal": 254,
+      "outputTotal": 64712,
+      "costTotal": 2.02339085
+    },
+    {
+      "timestamp": "2026-03-10T14:15:01.910Z",
+      "inputTotal": 256,
+      "outputTotal": 70488,
+      "costTotal": 2.1713921000000003
+    },
+    {
+      "timestamp": "2026-03-10T14:16:08.720Z",
+      "inputTotal": 258,
+      "outputTotal": 75146,
+      "costTotal": 2.3123445499999997
+    },
+    {
+      "timestamp": "2026-03-10T14:16:13.746Z",
       "inputTotal": 259,
-      "outputTotal": 6257,
-      "costTotal": 0.15402165000000004
+      "outputTotal": 75276,
+      "costTotal": 2.35662545
     },
     {
-      "timestamp": "2026-03-09T10:30:04.625Z",
+      "timestamp": "2026-03-10T14:16:21.290Z",
+      "inputTotal": 261,
+      "outputTotal": 75452,
+      "costTotal": 2.41767035
+    },
+    {
+      "timestamp": "2026-03-10T14:16:27.890Z",
+      "inputTotal": 263,
+      "outputTotal": 75644,
+      "costTotal": 2.4754240999999997
+    },
+    {
+      "timestamp": "2026-03-10T14:16:41.548Z",
+      "inputTotal": 265,
+      "outputTotal": 76324,
+      "costTotal": 2.54998535
+    },
+    {
+      "timestamp": "2026-03-10T14:16:50.959Z",
+      "inputTotal": 266,
+      "outputTotal": 76924,
+      "costTotal": 2.5891325
+    },
+    {
+      "timestamp": "2026-03-10T14:16:59.060Z",
+      "inputTotal": 267,
+      "outputTotal": 89853,
+      "costTotal": 2.81105975
+    },
+    {
+      "timestamp": "2026-03-10T14:17:06.234Z",
+      "inputTotal": 268,
+      "outputTotal": 89990,
+      "costTotal": 2.88835115
+    },
+    {
+      "timestamp": "2026-03-10T14:17:15.388Z",
       "inputTotal": 271,
-      "outputTotal": 8618,
-      "costTotal": 0.17147030000000005
+      "outputTotal": 91234,
+      "costTotal": 3.0021654499999997
     },
     {
-      "timestamp": "2026-03-09T10:30:10.508Z",
-      "inputTotal": 271,
-      "outputTotal": 8618,
-      "costTotal": 0.17147030000000005
+      "timestamp": "2026-03-10T14:17:23.372Z",
+      "inputTotal": 272,
+      "outputTotal": 91598,
+      "costTotal": 3.0390855499999994
     },
     {
-      "timestamp": "2026-03-09T10:30:19.017Z",
+      "timestamp": "2026-03-10T14:17:29.824Z",
+      "inputTotal": 273,
+      "outputTotal": 92742,
+      "costTotal": 3.0878688499999996
+    },
+    {
+      "timestamp": "2026-03-10T14:17:35.708Z",
+      "inputTotal": 275,
+      "outputTotal": 93161,
+      "costTotal": 3.1596387499999996
+    },
+    {
+      "timestamp": "2026-03-10T14:17:42.193Z",
       "inputTotal": 277,
-      "outputTotal": 9189,
-      "costTotal": 0.32473325000000003
+      "outputTotal": 93470,
+      "costTotal": 3.2264351
     },
     {
-      "timestamp": "2026-03-09T10:30:26.033Z",
-      "inputTotal": 280,
-      "outputTotal": 9852,
-      "costTotal": 0.37808300000000006
+      "timestamp": "2026-03-10T14:17:47.241Z",
+      "inputTotal": 279,
+      "outputTotal": 93832,
+      "costTotal": 3.2916396499999996
     },
     {
-      "timestamp": "2026-03-09T10:30:33.378Z",
-      "inputTotal": 282,
-      "outputTotal": 10275,
-      "costTotal": 0.41453960000000006
+      "timestamp": "2026-03-10T14:17:56.454Z",
+      "inputTotal": 281,
+      "outputTotal": 94485,
+      "costTotal": 3.363920899999999
     },
     {
-      "timestamp": "2026-03-09T10:30:39.715Z",
+      "timestamp": "2026-03-10T14:18:02.388Z",
+      "inputTotal": 283,
+      "outputTotal": 94871,
+      "costTotal": 3.430253149999999
+    },
+    {
+      "timestamp": "2026-03-10T14:18:14.996Z",
       "inputTotal": 284,
-      "outputTotal": 10718,
-      "costTotal": 0.46062755
+      "outputTotal": 95925,
+      "costTotal": 3.479719999999999
     },
     {
-      "timestamp": "2026-03-09T10:30:46.088Z",
+      "timestamp": "2026-03-10T14:18:21.946Z",
       "inputTotal": 285,
-      "outputTotal": 10879,
-      "costTotal": 0.48849125000000004
+      "outputTotal": 97031,
+      "costTotal": 3.526764199999999
     },
     {
-      "timestamp": "2026-03-09T10:30:52.559Z",
-      "inputTotal": 288,
-      "outputTotal": 11389,
-      "costTotal": 0.55528595
+      "timestamp": "2026-03-10T14:18:39.728Z",
+      "inputTotal": 286,
+      "outputTotal": 98037,
+      "costTotal": 3.576971599999999
     },
     {
-      "timestamp": "2026-03-09T10:30:58.050Z",
+      "timestamp": "2026-03-10T14:18:45.433Z",
+      "inputTotal": 287,
+      "outputTotal": 98150,
+      "costTotal": 3.6123706999999987
+    },
+    {
+      "timestamp": "2026-03-10T14:18:52.675Z",
+      "inputTotal": 289,
+      "outputTotal": 98319,
+      "costTotal": 3.682745299999999
+    },
+    {
+      "timestamp": "2026-03-10T14:18:57.916Z",
+      "inputTotal": 290,
+      "outputTotal": 98792,
+      "costTotal": 3.7212954499999986
+    },
+    {
+      "timestamp": "2026-03-10T14:19:13.008Z",
       "inputTotal": 291,
-      "outputTotal": 11851,
-      "costTotal": 0.62054615
+      "outputTotal": 99534,
+      "costTotal": 3.7656460999999988
     },
     {
-      "timestamp": "2026-03-09T10:31:03.484Z",
+      "timestamp": "2026-03-10T14:19:22.905Z",
       "inputTotal": 293,
-      "outputTotal": 12073,
-      "costTotal": 0.6601334000000001
+      "outputTotal": 101340,
+      "costTotal": 3.8601747499999988
     },
     {
-      "timestamp": "2026-03-09T10:31:10.890Z",
+      "timestamp": "2026-03-10T14:19:29.711Z",
+      "inputTotal": 294,
+      "outputTotal": 101601,
+      "costTotal": 3.8966670499999987
+    },
+    {
+      "timestamp": "2026-03-10T14:19:37.426Z",
+      "inputTotal": 295,
+      "outputTotal": 101733,
+      "costTotal": 3.9310693999999993
+    },
+    {
+      "timestamp": "2026-03-10T14:19:42.939Z",
+      "inputTotal": 295,
+      "outputTotal": 101733,
+      "costTotal": 3.9310693999999993
+    },
+    {
+      "timestamp": "2026-03-10T14:19:48.480Z",
+      "inputTotal": 296,
+      "outputTotal": 102006,
+      "costTotal": 3.967228699999999
+    },
+    {
+      "timestamp": "2026-03-10T14:20:01.777Z",
+      "inputTotal": 297,
+      "outputTotal": 102718,
+      "costTotal": 4.012277449999999
+    },
+    {
+      "timestamp": "2026-03-10T14:20:23.391Z",
       "inputTotal": 298,
-      "outputTotal": 12850,
-      "costTotal": 0.74604815
+      "outputTotal": 103557,
+      "costTotal": 4.060064149999999
     },
     {
-      "timestamp": "2026-03-09T10:31:16.522Z",
+      "timestamp": "2026-03-10T14:20:39.476Z",
       "inputTotal": 299,
-      "outputTotal": 13102,
-      "costTotal": 0.7683180500000001
+      "outputTotal": 104213,
+      "costTotal": 4.105359049999999
     },
     {
-      "timestamp": "2026-03-09T10:31:25.295Z",
-      "inputTotal": 301,
-      "outputTotal": 13863,
-      "costTotal": 0.8171258000000001
+      "timestamp": "2026-03-10T14:21:00.498Z",
+      "inputTotal": 300,
+      "outputTotal": 105177,
+      "costTotal": 4.155174799999999
     },
     {
-      "timestamp": "2026-03-09T10:31:30.591Z",
-      "inputTotal": 302,
-      "outputTotal": 14317,
-      "costTotal": 0.8415158000000001
-    },
-    {
-      "timestamp": "2026-03-09T10:31:57.145Z",
+      "timestamp": "2026-03-10T14:21:11.757Z",
       "inputTotal": 303,
-      "outputTotal": 16368,
-      "costTotal": 0.8893595000000001
+      "outputTotal": 105301,
+      "costTotal": 4.219837549999999
     },
     {
-      "timestamp": "2026-03-09T10:32:02.528Z",
-      "inputTotal": 304,
-      "outputTotal": 16527,
-      "costTotal": 0.9146687000000001
+      "timestamp": "2026-03-10T14:21:17.628Z",
+      "inputTotal": 305,
+      "outputTotal": 105496,
+      "costTotal": 4.234335799999999
     },
     {
-      "timestamp": "2026-03-09T10:32:12.390Z",
+      "timestamp": "2026-03-10T14:21:23.877Z",
       "inputTotal": 306,
-      "outputTotal": 17070,
-      "costTotal": 0.9559011500000001
+      "outputTotal": 105740,
+      "costTotal": 4.2924283999999995
     },
     {
-      "timestamp": "2026-03-09T10:32:19.735Z",
-      "inputTotal": 307,
-      "outputTotal": 17187,
-      "costTotal": 0.9753254000000001
+      "timestamp": "2026-03-10T14:21:34.363Z",
+      "inputTotal": 308,
+      "outputTotal": 106357,
+      "costTotal": 4.325523199999999
     },
     {
-      "timestamp": "2026-03-09T10:32:25.369Z",
+      "timestamp": "2026-03-10T14:21:42.819Z",
       "inputTotal": 310,
-      "outputTotal": 21141,
-      "costTotal": 1.0884389
+      "outputTotal": 106749,
+      "costTotal": 4.357905799999999
     },
     {
-      "timestamp": "2026-03-09T10:32:30.670Z",
+      "timestamp": "2026-03-10T14:21:51.201Z",
+      "inputTotal": 312,
+      "outputTotal": 107163,
+      "costTotal": 4.390636699999999
+    },
+    {
+      "timestamp": "2026-03-10T14:21:57.185Z",
       "inputTotal": 313,
-      "outputTotal": 21717,
-      "costTotal": 1.1553749
+      "outputTotal": 107301,
+      "costTotal": 4.404149299999999
     },
     {
-      "timestamp": "2026-03-09T10:32:39.037Z",
+      "timestamp": "2026-03-10T14:22:04.597Z",
+      "inputTotal": 314,
+      "outputTotal": 107793,
+      "costTotal": 4.423770199999999
+    },
+    {
+      "timestamp": "2026-03-10T14:22:17.852Z",
+      "inputTotal": 315,
+      "outputTotal": 108709,
+      "costTotal": 4.450412599999999
+    },
+    {
+      "timestamp": "2026-03-10T14:22:26.710Z",
       "inputTotal": 316,
-      "outputTotal": 22204,
-      "costTotal": 1.2142139
+      "outputTotal": 109151,
+      "costTotal": 4.472632849999999
     },
     {
-      "timestamp": "2026-03-09T10:32:46.837Z",
+      "timestamp": "2026-03-10T14:22:37.445Z",
+      "inputTotal": 317,
+      "outputTotal": 109304,
+      "costTotal": 4.4886972499999995
+    },
+    {
+      "timestamp": "2026-03-10T14:22:47.448Z",
       "inputTotal": 318,
-      "outputTotal": 22434,
-      "costTotal": 1.2523142
+      "outputTotal": 109457,
+      "costTotal": 4.50344405
     },
     {
-      "timestamp": "2026-03-09T10:32:55.666Z",
+      "timestamp": "2026-03-10T14:22:55.989Z",
       "inputTotal": 320,
-      "outputTotal": 22996,
-      "costTotal": 1.2956243
+      "outputTotal": 109855,
+      "costTotal": 4.535669749999999
     },
     {
-      "timestamp": "2026-03-09T10:33:02.280Z",
+      "timestamp": "2026-03-10T14:23:05.611Z",
+      "inputTotal": 321,
+      "outputTotal": 110319,
+      "costTotal": 4.555870099999999
+    },
+    {
+      "timestamp": "2026-03-10T14:23:22.458Z",
+      "inputTotal": 322,
+      "outputTotal": 111202,
+      "costTotal": 4.582937899999999
+    },
+    {
+      "timestamp": "2026-03-10T14:23:33.060Z",
       "inputTotal": 323,
-      "outputTotal": 25320,
-      "costTotal": 1.3808397500000003
+      "outputTotal": 111673,
+      "costTotal": 4.606673149999999
     },
     {
-      "timestamp": "2026-03-09T10:33:07.354Z",
+      "timestamp": "2026-03-10T14:23:43.353Z",
+      "inputTotal": 324,
+      "outputTotal": 112175,
+      "costTotal": 4.628690299999999
+    },
+    {
+      "timestamp": "2026-03-10T14:23:59.073Z",
       "inputTotal": 325,
-      "outputTotal": 25532,
-      "costTotal": 1.42031705
+      "outputTotal": 112676,
+      "costTotal": 4.651342849999999
     },
     {
-      "timestamp": "2026-03-09T10:33:14.991Z",
+      "timestamp": "2026-03-10T14:24:10.485Z",
+      "inputTotal": 326,
+      "outputTotal": 113190,
+      "costTotal": 4.673953549999999
+    },
+    {
+      "timestamp": "2026-03-10T14:24:18.196Z",
+      "inputTotal": 327,
+      "outputTotal": 113578,
+      "costTotal": 4.695313549999999
+    },
+    {
+      "timestamp": "2026-03-10T14:24:34.508Z",
+      "inputTotal": 328,
+      "outputTotal": 114068,
+      "costTotal": 4.717590649999999
+    },
+    {
+      "timestamp": "2026-03-10T14:24:42.727Z",
       "inputTotal": 329,
-      "outputTotal": 25881,
-      "costTotal": 1.4908667000000002
+      "outputTotal": 114427,
+      "costTotal": 4.738386949999999
     },
     {
-      "timestamp": "2026-03-09T10:33:21.948Z",
+      "timestamp": "2026-03-10T14:24:53.711Z",
+      "inputTotal": 331,
+      "outputTotal": 114981,
+      "costTotal": 4.776087349999999
+    },
+    {
+      "timestamp": "2026-03-10T14:25:43.205Z",
       "inputTotal": 332,
-      "outputTotal": 26447,
-      "costTotal": 1.5510776000000002
-    },
-    {
-      "timestamp": "2026-03-09T10:33:30.376Z",
-      "inputTotal": 335,
-      "outputTotal": 27226,
-      "costTotal": 1.6154093
-    },
-    {
-      "timestamp": "2026-03-09T10:33:36.319Z",
-      "inputTotal": 337,
-      "outputTotal": 27943,
-      "costTotal": 1.6601741
-    },
-    {
-      "timestamp": "2026-03-09T10:33:42.153Z",
-      "inputTotal": 339,
-      "outputTotal": 28381,
-      "costTotal": 1.70592545
-    },
-    {
-      "timestamp": "2026-03-09T10:33:47.266Z",
-      "inputTotal": 341,
-      "outputTotal": 28989,
-      "costTotal": 1.7496863
-    },
-    {
-      "timestamp": "2026-03-09T10:33:53.860Z",
-      "inputTotal": 344,
-      "outputTotal": 29541,
-      "costTotal": 1.8120806000000003
-    },
-    {
-      "timestamp": "2026-03-09T10:33:59.304Z",
-      "inputTotal": 347,
-      "outputTotal": 30158,
-      "costTotal": 1.8729078500000003
-    },
-    {
-      "timestamp": "2026-03-09T10:34:05.458Z",
-      "inputTotal": 350,
-      "outputTotal": 30536,
-      "costTotal": 1.9323879500000003
-    },
-    {
-      "timestamp": "2026-03-09T10:34:11.061Z",
-      "inputTotal": 351,
-      "outputTotal": 30943,
-      "costTotal": 1.9556358500000002
-    },
-    {
-      "timestamp": "2026-03-09T10:34:16.481Z",
-      "inputTotal": 353,
-      "outputTotal": 31552,
-      "costTotal": 2.0005655000000004
-    },
-    {
-      "timestamp": "2026-03-09T10:34:21.927Z",
-      "inputTotal": 355,
-      "outputTotal": 31835,
-      "costTotal": 2.0441652500000003
-    },
-    {
-      "timestamp": "2026-03-09T10:34:26.963Z",
-      "inputTotal": 356,
-      "outputTotal": 32019,
-      "costTotal": 2.0661515
-    },
-    {
-      "timestamp": "2026-03-09T10:34:33.563Z",
-      "inputTotal": 358,
-      "outputTotal": 33141,
-      "costTotal": 2.1200267000000004
-    },
-    {
-      "timestamp": "2026-03-09T10:34:39.143Z",
-      "inputTotal": 361,
-      "outputTotal": 33758,
-      "costTotal": 2.1871142000000003
-    },
-    {
-      "timestamp": "2026-03-09T10:34:45.539Z",
-      "inputTotal": 364,
-      "outputTotal": 34166,
-      "costTotal": 2.2485843500000002
-    },
-    {
-      "timestamp": "2026-03-09T10:34:52.037Z",
-      "inputTotal": 366,
-      "outputTotal": 34572,
-      "costTotal": 2.2941086000000004
-    },
-    {
-      "timestamp": "2026-03-09T10:34:59.092Z",
-      "inputTotal": 369,
-      "outputTotal": 35079,
-      "costTotal": 2.3593173500000004
-    },
-    {
-      "timestamp": "2026-03-09T10:35:05.190Z",
-      "inputTotal": 370,
-      "outputTotal": 35531,
-      "costTotal": 2.38450265
-    },
-    {
-      "timestamp": "2026-03-09T10:35:11.540Z",
-      "inputTotal": 373,
-      "outputTotal": 36289,
-      "costTotal": 2.45547485
-    },
-    {
-      "timestamp": "2026-03-09T10:35:17.166Z",
-      "inputTotal": 374,
-      "outputTotal": 36479,
-      "costTotal": 2.4755594
-    },
-    {
-      "timestamp": "2026-03-09T10:35:30.348Z",
-      "inputTotal": 377,
-      "outputTotal": 37062,
-      "costTotal": 2.5366973
-    },
-    {
-      "timestamp": "2026-03-09T10:35:36.689Z",
-      "inputTotal": 378,
-      "outputTotal": 37887,
-      "costTotal": 2.5700562500000004
-    },
-    {
-      "timestamp": "2026-03-09T10:35:52.969Z",
-      "inputTotal": 379,
-      "outputTotal": 38798,
-      "costTotal": 2.60280155
-    },
-    {
-      "timestamp": "2026-03-09T10:36:00.404Z",
-      "inputTotal": 382,
-      "outputTotal": 38925,
-      "costTotal": 2.66837555
-    },
-    {
-      "timestamp": "2026-03-09T10:36:06.281Z",
-      "inputTotal": 384,
-      "outputTotal": 39238,
-      "costTotal": 2.69405645
-    },
-    {
-      "timestamp": "2026-03-09T10:36:14.521Z",
-      "inputTotal": 386,
-      "outputTotal": 39675,
-      "costTotal": 2.72718155
-    },
-    {
-      "timestamp": "2026-03-09T10:36:21.635Z",
-      "inputTotal": 388,
-      "outputTotal": 40040,
-      "costTotal": 2.75350835
-    },
-    {
-      "timestamp": "2026-03-09T10:36:31.084Z",
-      "inputTotal": 390,
-      "outputTotal": 40528,
-      "costTotal": 2.7898886000000003
-    },
-    {
-      "timestamp": "2026-03-09T10:36:38.691Z",
-      "inputTotal": 392,
-      "outputTotal": 40886,
-      "costTotal": 2.8185272
-    },
-    {
-      "timestamp": "2026-03-09T10:36:49.089Z",
-      "inputTotal": 393,
-      "outputTotal": 41533,
-      "costTotal": 2.8405205000000002
-    },
-    {
-      "timestamp": "2026-03-09T10:36:56.618Z",
-      "inputTotal": 394,
-      "outputTotal": 41907,
-      "costTotal": 2.85888185
-    },
-    {
-      "timestamp": "2026-03-09T10:37:17.019Z",
-      "inputTotal": 395,
-      "outputTotal": 43482,
-      "costTotal": 2.89389275
-    },
-    {
-      "timestamp": "2026-03-09T10:37:51.555Z",
-      "inputTotal": 396,
-      "outputTotal": 45765,
-      "costTotal": 2.9446196000000002
-    },
-    {
-      "timestamp": "2026-03-09T10:38:02.586Z",
-      "inputTotal": 397,
-      "outputTotal": 46301,
-      "costTotal": 2.97339245
-    },
-    {
-      "timestamp": "2026-03-09T10:38:27.472Z",
-      "inputTotal": 398,
-      "outputTotal": 47534,
-      "costTotal": 3.00513455
-    },
-    {
-      "timestamp": "2026-03-09T10:38:33.045Z",
-      "inputTotal": 399,
-      "outputTotal": 47696,
-      "costTotal": 3.02369645
-    },
-    {
-      "timestamp": "2026-03-09T10:38:45.872Z",
-      "inputTotal": 400,
-      "outputTotal": 48191,
-      "costTotal": 3.0458478500000004
-    },
-    {
-      "timestamp": "2026-03-09T10:38:53.019Z",
-      "inputTotal": 401,
-      "outputTotal": 48607,
-      "costTotal": 3.06789785
-    },
-    {
-      "timestamp": "2026-03-09T10:39:01.590Z",
-      "inputTotal": 403,
-      "outputTotal": 48854,
-      "costTotal": 3.1007817500000003
-    },
-    {
-      "timestamp": "2026-03-09T10:39:13.577Z",
-      "inputTotal": 405,
-      "outputTotal": 49468,
-      "costTotal": 3.138914
-    },
-    {
-      "timestamp": "2026-03-09T10:39:30.730Z",
-      "inputTotal": 406,
-      "outputTotal": 50802,
-      "costTotal": 3.1739409500000004
-    },
-    {
-      "timestamp": "2026-03-09T10:39:37.129Z",
-      "inputTotal": 407,
-      "outputTotal": 51125,
-      "costTotal": 3.19716425
-    },
-    {
-      "timestamp": "2026-03-09T10:39:46.848Z",
-      "inputTotal": 409,
-      "outputTotal": 51538,
-      "costTotal": 3.2325266
-    },
-    {
-      "timestamp": "2026-03-09T10:39:53.004Z",
-      "inputTotal": 410,
-      "outputTotal": 51823,
-      "costTotal": 3.2524181
-    },
-    {
-      "timestamp": "2026-03-09T10:40:00.422Z",
-      "inputTotal": 411,
-      "outputTotal": 52071,
-      "costTotal": 3.27118055
-    },
-    {
-      "timestamp": "2026-03-09T10:40:12.179Z",
-      "inputTotal": 412,
-      "outputTotal": 52525,
-      "costTotal": 3.2930267
-    },
-    {
-      "timestamp": "2026-03-09T10:40:18.197Z",
-      "inputTotal": 413,
-      "outputTotal": 52798,
-      "costTotal": 3.3129944
-    },
-    {
-      "timestamp": "2026-03-09T10:40:31.149Z",
-      "inputTotal": 414,
-      "outputTotal": 53502,
-      "costTotal": 3.3388946
-    },
-    {
-      "timestamp": "2026-03-09T10:40:57.008Z",
-      "inputTotal": 415,
-      "outputTotal": 54802,
-      "costTotal": 3.3754764500000003
-    },
-    {
-      "timestamp": "2026-03-09T10:41:20.671Z",
-      "inputTotal": 416,
-      "outputTotal": 55829,
-      "costTotal": 3.4103766500000003
+      "outputTotal": 117322,
+      "costTotal": 4.827784099999999
     }
   ],
   "filesChanged": [
     {
       "path": ".pi-swarm/scout-context.md",
-      "linesAdded": 150,
+      "linesAdded": 92,
+      "linesRemoved": 111,
+      "agent": "builder-2"
+    },
+    {
+      "path": ".pi/extensions/swarm-guard.ts",
+      "linesAdded": 2,
+      "linesRemoved": 2,
+      "agent": "builder-2"
+    },
+    {
+      "path": "scripts/backtest_player_features.py",
+      "linesAdded": 913,
       "linesRemoved": 0,
+      "agent": "builder-2"
+    },
+    {
+      "path": ".pi-swarm/scout-context.md",
+      "linesAdded": 92,
+      "linesRemoved": 111,
       "agent": "builder-1"
     },
     {
       "path": ".pi/extensions/swarm-guard.ts",
-      "linesAdded": 167,
-      "linesRemoved": 0,
+      "linesAdded": 5,
+      "linesRemoved": 5,
       "agent": "builder-1"
     },
     {
       "path": ".pi/extensions/swarm-mail.ts",
-      "linesAdded": 149,
-      "linesRemoved": 0,
+      "linesAdded": 2,
+      "linesRemoved": 2,
       "agent": "builder-1"
     },
     {
-      "path": ".pi/settings.json",
-      "linesAdded": 5,
-      "linesRemoved": 0,
-      "agent": "builder-1"
-    },
-    {
-      "path": "data/processed",
+      "path": "data/cache/player_stats/player_stats_2026.json",
       "linesAdded": 1,
       "linesRemoved": 0,
       "agent": "builder-1"
     },
     {
       "path": "pipelines/v4.py",
-      "linesAdded": 161,
+      "linesAdded": 350,
       "linesRemoved": 0,
       "agent": "builder-1"
     },
     {
-      "path": "predict_round.py",
-      "linesAdded": 30,
-      "linesRemoved": 7,
-      "agent": "builder-1"
-    },
-    {
-      "path": "refresh_week.py",
-      "linesAdded": 37,
+      "path": "scraping/nrl_player_stats.py",
+      "linesAdded": 584,
       "linesRemoved": 0,
       "agent": "builder-1"
-    },
-    {
-      "path": ".pi-swarm/scout-context.md",
-      "linesAdded": 150,
-      "linesRemoved": 0,
-      "agent": "builder-2"
-    },
-    {
-      "path": ".pi/extensions/swarm-guard.ts",
-      "linesAdded": 167,
-      "linesRemoved": 0,
-      "agent": "builder-2"
-    },
-    {
-      "path": ".pi/extensions/swarm-mail.ts",
-      "linesAdded": 149,
-      "linesRemoved": 0,
-      "agent": "builder-2"
-    },
-    {
-      "path": ".pi/settings.json",
-      "linesAdded": 5,
-      "linesRemoved": 0,
-      "agent": "builder-2"
-    },
-    {
-      "path": "pipelines/v4.py",
-      "linesAdded": 155,
-      "linesRemoved": 0,
-      "agent": "builder-2"
-    },
-    {
-      "path": "predict_round.py",
-      "linesAdded": 33,
-      "linesRemoved": 7,
-      "agent": "builder-2"
-    },
-    {
-      "path": "refresh_week.py",
-      "linesAdded": 48,
-      "linesRemoved": 0,
-      "agent": "builder-2"
     }
   ]
 }

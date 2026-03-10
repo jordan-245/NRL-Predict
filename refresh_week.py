@@ -195,6 +195,59 @@ def step_scrape_match_stats(year: int, round_num: int):
           f"({len(new_df)} new for Round {round_num})")
 
 
+def step_scrape_player_stats(year: int, round_num: int):
+    """Scrape per-player match stats from NRL.com match centre API.
+
+    Fetches individual player stats (run metres, tackles, line breaks, etc.)
+    for all players in all matches of the round and appends them to
+    player_match_stats.parquet.
+    Idempotent: removes any existing rows for this year+round before saving.
+    """
+    print(f"\n  STEP 1c: Scraping player stats for Round {round_num} of {year}...")
+
+    try:
+        from scraping.nrl_player_stats import fetch_round_player_stats
+    except ImportError as e:
+        print(f"    SKIPPED: could not import fetch_round_player_stats — {e}")
+        return
+
+    try:
+        new_stats = fetch_round_player_stats(year, round_num)
+    except Exception as e:
+        print(f"    ERROR fetching player stats: {e}")
+        return
+
+    if not new_stats:
+        print(f"    No player stats returned for Round {round_num} — skipping")
+        return
+
+    new_df = pd.DataFrame(new_stats)
+    if new_df.empty:
+        print(f"    Empty player stats DataFrame — skipping")
+        return
+
+    print(f"    Fetched {len(new_df)} player stat rows")
+
+    stats_path = PROCESSED_DIR / "player_match_stats.parquet"
+    if stats_path.exists():
+        existing = pd.read_parquet(stats_path)
+        # Remove existing rows for this year+round (idempotent)
+        mask = ~((existing["year"] == year) & (existing["round"].astype(str) == str(round_num)))
+        existing = existing[mask]
+        combined = pd.concat([existing, new_df], ignore_index=True)
+    else:
+        combined = new_df
+
+    # Deduplicate on (year, round, match_id, player_id)
+    dedup_cols = ["year", "round", "match_id", "player_id"]
+    if all(c in combined.columns for c in dedup_cols):
+        combined = combined.drop_duplicates(subset=dedup_cols, keep="last")
+
+    combined.to_parquet(stats_path, index=False, engine="pyarrow")
+    print(f"    Saved player_match_stats.parquet — {len(combined)} total rows "
+          f"({len(new_df)} new for Round {round_num})")
+
+
 def step2_update_matches(new_matches: list[dict], year: int, round_num: int):
     """Append new match results to matches.parquet."""
     print(f"\n  STEP 2: Updating matches.parquet...")
@@ -389,6 +442,7 @@ def main():
         if not args.skip_scrape:
             new_matches, new_ladders = step1_scrape_round(year, round_num)
             step_scrape_match_stats(year, round_num)
+            step_scrape_player_stats(year, round_num)
             step2_update_matches(new_matches, year, round_num)
             step3_update_ladders(new_ladders, year, round_num)
         else:

@@ -230,6 +230,22 @@ FEATURE_COLS = [
         "completion_rate", "line_breaks", "tackle_breaks", "errors", "missed_tackles",
         "all_run_metres", "possession_pct", "effective_tackle_pct", "post_contact_metres", "offloads",
     ]],
+    # V4 Player form features (42)
+    # Spine form: rolling 3/5-game avg of 4 spine players' key stats (24)
+    *[f"{side}_spine_{stat}_{w}" for w in [3, 5]
+      for side in ["home", "away"]
+      for stat in ["run_metres", "line_breaks", "tackle_breaks", "try_assists"]],
+    *[f"spine_diff_{stat}_{w}" for w in [3, 5]
+      for stat in ["run_metres", "line_breaks", "tackle_breaks", "try_assists"]],
+    # Squad quality: rolling 3/5-game avg of starting 13's stats (12)
+    *[f"{side}_squad_{stat}_{w}" for w in [3, 5]
+      for side in ["home", "away"]
+      for stat in ["fantasy", "minutes"]],
+    *[f"squad_diff_{stat}_{w}" for w in [3, 5]
+      for stat in ["fantasy", "minutes"]],
+    # Squad disruption: player changes vs previous game (6)
+    "home_spine_changes", "away_spine_changes", "spine_changes_diff",
+    "home_squad_turnover", "away_squad_turnover", "squad_turnover_diff",
 ]
 
 
@@ -352,9 +368,17 @@ def load_historical_data():
         print("  WARNING: match_stats.parquet not found — running without rolling match stats")
         match_stats = None
 
+    player_stats_path = PROCESSED_DIR / "player_match_stats.parquet"
+    if player_stats_path.exists():
+        player_match_stats = pd.read_parquet(player_stats_path)
+    else:
+        print("  WARNING: player_match_stats.parquet not found — running without player form features")
+        player_match_stats = None
+
     print(f"  Matches: {len(matches)}  |  Ladders: {len(ladders)}  |  Odds: {len(odds)}"
-          f"  |  Match stats: {len(match_stats) if match_stats is not None else 0}")
-    return matches, ladders, odds, match_stats
+          f"  |  Match stats: {len(match_stats) if match_stats is not None else 0}"
+          f"  |  Player stats: {len(player_match_stats) if player_match_stats is not None else 0}")
+    return matches, ladders, odds, match_stats, player_match_stats
 
 
 def load_upcoming_matches(csv_path: str | Path, round_num: int, year: int) -> pd.DataFrame:
@@ -605,7 +629,8 @@ def _filter_match(results: pd.DataFrame, match_str: str) -> pd.DataFrame:
 def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
                    odds: pd.DataFrame, upcoming: pd.DataFrame,
                    elo_params: dict,
-                   match_stats: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+                   match_stats: pd.DataFrame | None = None,
+                   player_match_stats: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     """Build V4 features for all matches and return train/predict splits.
 
     Returns (train_features, predict_features, feature_cols).
@@ -665,6 +690,9 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
 
     # Rolling per-game match stats (process quality: completion rate, line breaks, etc.)
     all_matches = v4.compute_rolling_match_stats_features(all_matches, match_stats)
+
+    # Player-level form features (spine form, squad quality, disruption)
+    all_matches = v4.compute_player_form_features(all_matches, player_match_stats)
 
     # Create target
     all_matches["home_win"] = np.where(
@@ -1266,14 +1294,15 @@ def main():
 
         # === FULL PATH: build features, train, predict, cache ===
         print("\n  STEP 2: Loading historical data")
-        matches, ladders, odds, match_stats = load_historical_data()
+        matches, ladders, odds, match_stats, player_match_stats = load_historical_data()
 
         print("\n  STEP 3: Elo parameters")
         elo_params = get_elo_params(matches, retune=args.retune_elo)
 
         print("\n  STEP 4: Feature engineering")
         historical, upcoming_feat, feature_cols = build_features(
-            matches, ladders, odds, upcoming_api, elo_params, match_stats
+            matches, ladders, odds, upcoming_api, elo_params, match_stats,
+            player_match_stats
         )
 
         print("\n  STEP 5: Model training & prediction")
@@ -1322,7 +1351,7 @@ def main():
 
         # Step 1: Load data
         print("\n  STEP 1: Loading data")
-        matches, ladders, odds, match_stats = load_historical_data()
+        matches, ladders, odds, match_stats, player_match_stats = load_historical_data()
         upcoming = load_upcoming_matches(csv_path, round_num, year)
 
         # Step 2: Get Elo parameters
@@ -1332,7 +1361,8 @@ def main():
         # Step 3: Build features
         print("\n  STEP 3: Feature engineering")
         historical, upcoming_feat, feature_cols = build_features(
-            matches, ladders, odds, upcoming, elo_params, match_stats
+            matches, ladders, odds, upcoming, elo_params, match_stats,
+            player_match_stats
         )
 
         # Step 4: Train and predict

@@ -1,150 +1,131 @@
 
 
 ### scout-1
-Perfect! Now I have comprehensive codebase context. Let me create a detailed scout report:
+I'm a read-only scout preparing context for your 2 builders. Based on my codebase exploration, here's the comprehensive **scout context** you'll hand to the builders:
 
 ---
 
-## SCOUT REPORT: Rolling Per-Game Match Stats Features
+## Scout Context: Add Player-Level Form Features to NRL Prediction Model
 
 ### Files Retrieved
 
-1. **`scraping/nrl_match_stats.py`** (lines 1-100) — Defines 30+ team-level stats mapping from NRL.com API (possession_pct, line_breaks, tackle_breaks, completion_rate, etc.). Saves to `data/processed/match_stats.parquet`.
+1. **scraping/nrl_match_stats.py** (lines 1-250)  
+   Current scraper already fetches raw match-centre JSON with player data at `data['stats']['players']` (~58 fields/player), but only extracts team-level stats. The `parse_match_stats()` function processes team stats from `data['stats']['groups']` but ignores player data entirely.
 
-2. **`data/processed/match_stats.parquet`** (exists but sparse) — 568 rows (2020-2022) with columns for home_* and away_* stats. Schema present but data mostly NULL (only 2015 has actual values in cache).
+2. **pipelines/v4.py** (lines 441-514, 858-1006)  
+   Feature engineering pipeline with `compute_rolling_match_stats_features()` pattern—exactly what builders need to follow. Uses 10 team-level stats × 2 rolling windows (3, 5) = 20 columns per team. Clear no-look-ahead-bias implementation via chronological match logs + explicit prior-match filtering.
 
-3. **`pipelines/v3.py`** (lines 385-485) — `compute_rolling_form_features()` function implements the rolling window pattern we need to emulate: builds team match log, computes windows [3,5,8], creates lookup dict, attaches to DataFrame.
+3. **processing/build_player_data.py**  
+   Already builds `player_appearances.parquet` (85k+ rows): year, round, match_id, team, player_name, position, is_starter, is_spine. Includes jersey→position mapping and SPINE_POSITIONS = {FB, HB, FE, HK}.
 
-4. **`pipelines/v4.py`** (lines 1-100, 1676-1720) — Main pipeline orchestration. V4 already computes 13 feature groups (elo, odds, form, venue, etc.) but does NOT load match_stats yet. Functions are called sequentially in `main()`.
+4. **processing/player_impact.py**  
+   Computes `player_impact.parquet` with weighted_impact scores. Shows Elo-adjustment pattern, though these are all-time scores (not per-match rolling).
 
-5. **`config/feature_config.yaml`** (lines 1-250) — Defines rolling windows [3,5,8,10], EWMA half-lives [3,5,8], and metrics to aggregate (win_rate, points_scored, etc.). `advanced_stats` feature group exists in v4+ but is not yet implemented.
+5. **config/settings.py**  
+   Core constants: PROJECT_ROOT, PROCESSED_DIR, FEATURES_DIR, START_YEAR=2013, END_YEAR=2026, ALL_ROUNDS definition.
 
-6. **`scripts/backtest_team_stats.py`** (lines 1-100) — Shows pattern for testing new stats features via walk-forward backtest. Uses season-level prior stats merged onto matches.
+### Key Code Patterns
 
-### Key Code
-
-**Pattern from v3.py** (rolling form implementation):
+**Player data structure (raw API):**
 ```python
-# 1. Build team match log (one row per team per match)
-home_log = pd.DataFrame({
-    "match_idx": range(len(df)), "team": df["home_team"],
-    "points_for": df["home_score"], "points_against": df["away_score"],
-    "date": df["date"],
-})
-log = pd.concat([home_log, away_log], ignore_index=True)
-log = log.sort_values(["team", "date", "match_idx"]).reset_index(drop=True)
-
-# 2. For each team/match, compute rolling stats on PRIOR games
-lookup = {}
-for team in log["team"].unique():
-    t_log = log[log["team"] == team].reset_index(drop=True)
-    for i, row in t_log.iterrows():
-        midx = int(row["match_idx"])
-        key = (team, midx)
-        prior = t_log.iloc[:i]
-        
-        for w in windows:  # [3, 5, 8]
-            pw = prior.tail(w)
-            lookup[key][f"win_rate_{w}"] = pw["win"].mean()
-
-# 3. Attach to DataFrame by (team, match_idx) lookup
-for side, team_col in [("home", "home_team"), ("away", "away_team")]:
-    for w in windows:
-        col_name = f"{side}_win_rate_{w}"
-        df[col_name] = [lookup.get((df.iloc[i][team_col], i), {}).get(f"win_rate_{w}", np.nan) for i in range(len(df))]
+data['stats']['players'] = {
+  'homeTeam': [
+    {
+      'playerId': 504870,
+      'allRuns': 18, 'allRunMetres': 157, 'lineBreaks': 2,
+      'tacklesMade': 15, 'missedTackles': 3, 'offloads': 4,
+      'passes': 22, 'tackles': 18, 'tries': 0, 'tries': 1,
+      'minutesPlayed': 62, 'errors': 1, 'penalties': 2,
+      # ... 58 fields total
+    },
+    # 19 players per team
+  ],
+  'awayTeam': [...],
+  'meta': {...}
+}
 ```
 
-**Match stats schema** (from STAT_COLUMNS in nrl_match_stats.py):
+**Existing team-stats extraction (nrl_match_stats.py ~ line 160):**
 ```python
 STAT_COLUMNS = {
     "Possession %": "possession_pct",
     "Completion Rate": "completion_rate",
     "Line Breaks": "line_breaks",
-    "Tackle Breaks": "tackle_breaks",
-    "All Run Metres": "all_run_metres",
-    "Post Contact Metres": "post_contact_metres",
-    "Errors": "errors",
-    "Penalties Conceded": "penalties_conceded",
-    "Effective Tackle %": "effective_tackle_pct",
-    "Missed Tackles": "missed_tackles",
-    # ... 20+ more stats
+    # 30+ more
 }
+
+def parse_match_stats(match_data, year, round_num):
+    stats = match_data.get("stats", {})
+    groups = stats.get("groups", [])  # TEAM STATS ONLY
+    # Ignores: stats.get("players", {})
+```
+
+**Rolling features pattern (pipelines/v4.py ~ line 858):**
+```python
+ROLLING_MATCH_STATS = [
+    "completion_rate", "line_breaks", "tackle_breaks", "errors", "missed_tackles",
+    "all_run_metres", "possession_pct", "effective_tackle_pct", "post_contact_metres", "offloads",
+]
+ROLLING_WINDOWS = [3, 5]
+
+def compute_rolling_match_stats_features(matches, match_stats_df):
+    # Per-team match log sorted chronologically
+    # For each match, lookup last 3 and 5 prior matches
+    # Outputs: home_ms_completion_rate_3, away_ms_line_breaks_5, ms_diff_* (total ~60 features)
 ```
 
 ### Architecture
 
-```
-match_stats.parquet (568 matches, 2020-2022)
-    ↓
-[NEW] processing/rolling_match_stats.py
-    ├─ load_match_stats() → reads parquet
-    ├─ compute_rolling_match_stats() → implements rolling window logic
-    │   (per v3 pattern: build log, compute windows [3,5,8,10], lookup)
-    └─ generates: home_possession_pct_3, home_possession_pct_5, etc.
-                  away_possession_pct_3, away_line_breaks_5, etc.
-    ↓
-pipelines/v4.py main()
-    ├─ [MODIFIED] Add call to compute_rolling_match_stats()
-    ├─ [UPDATED] build_v4_feature_matrix() to include new cols
-    └─ Feed into walk-forward backtest
-```
+**Current pipeline:**  
+NRL.com API → `fetch_match_stats()` → cached JSON → `parse_match_stats()` (TEAM STATS ONLY) → match_stats.parquet (72 cols) → v4.py pipeline → features
 
-**Data Flow:**
-- match_stats.parquet has year, round, home_team, away_team, home_possession_pct, away_possession_pct, etc.
-- matches.parquet has same join keys (year, round, home_team, away_team)
-- Join on (year, round, home_team, away_team) or sort by date + match_idx
-- Build per-team time series, compute rolling windows
-- Return DataFrame with new feature columns to attach back to matches
+**Proposed additions:**
+```
+1. Extend parse_match_stats() to ALSO extract data['stats']['players']
+2. NEW: processing/player_match_stats.py
+   - Builds per-player stats per match (raw)
+   - Builds rolling form features (3, 5 game rolling averages)
+   - Outputs: player_form_features.parquet
+3. NEW: compute_player_form_features() in v4.py
+   - Aggregates to team level (sum spine, avg efficiency)
+   - Joins to matches by (year, round, home_team, away_team)
+   - Outputs: home/away_player_form_score_*, *_diff features
+```
 
 ### Patterns & Conventions
 
-- **Naming**: `{side}_{stat}_{window}` where side ∈ {home, away}, stat ∈ {possession_pct, line_breaks, ...}, window ∈ {3, 5, 8, 10}
-- **Null handling**: Use `np.nan` for games where insufficient prior history (first 3-5 games have no/partial window data)
-- **Window sizes**: From `config/feature_config.yaml` → [3, 5, 8, 10] games
-- **Differentials**: After computing per-team features, create diff cols: `home_possession_pct_5 - away_possession_pct_5`
-- **Column selection**: Match stats are already home_* / away_* separated in parquet; no need to unpivot
-- **Data coverage**: 2015 has real data, 2020-2022 have empty columns. Code must handle gracefully (pass NaN through)
-- **Testing pattern**: Use backtest_team_stats.py as reference for walk-forward validation
+- **File organization:** `scraping/` (fetch), `processing/` (parse → parquet), `pipelines/` (engineer), `config/` (constants)
+- **Column naming:** `{side}_{metric}_{window}` (e.g., `home_player_form_5`, `away_tackles_rolling_3`)
+- **Joins:** On (year, round, home_team, away_team) OR (year, round, match_id, team, player_name)
+- **No look-ahead bias:** Build chronological match logs with match_idx, only reference PRIOR matches
+- **Error handling:** Missing data → np.nan, invalid responses → logged warning + skip
+- **Imports:** Always `from pathlib import Path`, `PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"`
 
 ### Start Here
 
-**File Ownership for a Swarm (if multiple builders):**
-| Builder | Owns |
-|---------|------|
-| Builder 1 | `processing/rolling_match_stats.py` (new module) |
-| Builder 2 | `pipelines/v4.py` (integrate function + update main) |
-| Builder 3 | `tests/test_rolling_match_stats.py` (new tests) + validation |
+**Builder 1: Player Stats Extraction & Form Features**  
+**Files: scraping/nrl_match_stats.py (extend), processing/player_match_stats.py (NEW)**
 
-**Builder 1 should start with:**
-1. Create `processing/rolling_match_stats.py` with functions:
-   - `load_match_stats(years=None)` → reads parquet, optionally filters by year
-   - `compute_rolling_match_stats_features(matches, match_stats, windows=[3,5,8,10])` → implements rolling logic per v3 pattern
-   - Returns matches DataFrame with new columns appended
+1. Extend `parse_match_stats()` to extract `data['stats']['players']`
+2. Create `processing/player_match_stats.py` with:
+   - `build_player_form_features()` — rolling 3, 5 game stats per player
+   - Output: `player_form_features.parquet` with columns: year, round, match_id, team, player_name, player_id, and rolling metrics for 8-10 key stats (allRuns, lineBreaks, tackles, etc.)
+3. Test: verify no NaN data leakage, match counts align with appearances.parquet
 
-2. Key implementation points:
-   - Reuse the v3 rolling form logic (build log, per-team iterator, lookup dict)
-   - Apply to each stat in match_stats columns (possession_pct, line_breaks, etc.)
-   - Handle sparse/NULL data: if stat col is all NaN, skip gracefully
-   - Ensure no look-ahead bias: only use prior games in window
-   - Sort by (team, date, match_idx) for chronological order
+**Builder 2: Pipeline Integration**  
+**Files: pipelines/v4.py (add functions only)**
 
-**Builder 2 should integrate in v4.py:**
-1. Import and call after v3 base features:
-   ```python
-   from processing.rolling_match_stats import load_match_stats, compute_rolling_match_stats_features
-   ...
-   match_stats = load_match_stats()
-   if not match_stats.empty:
-       matches = compute_rolling_match_stats_features(matches, match_stats)
-   ```
-2. Update `build_v4_feature_matrix()` to include new rolling stat columns
-3. Document which stats were included in feature summary
+1. Add `compute_player_form_features(matches, player_form_df)` following the rolling-match-stats pattern exactly
+2. Aggregate to team level: sum spine player form (FB, HB, FE, HK), average defensive metrics
+3. Add ~12-15 new features to `build_v4_feature_matrix()`: `home/away_player_form_score_3`, `home/away_player_form_score_5`, `player_form_diff_3`, `player_form_diff_5`, etc.
+4. Include in walk-forward backtest; verify feature importance
 
-**Builder 3 creates tests:**
-1. Unit tests for rolling computation (manual dataframe, verify window math)
-2. Integration test: ensure no NaN bleed where data exists
-3. Walk-forward backtest: compare accuracy with/without rolling match stats
+**Dependency:** Builder 1 → Builder 2 (Builder 2 depends on Builder 1's parquet output)
 
 ---
 
-This structure allows independent parallel work with clear boundaries and no file conflicts.
+**Summary for dispatch:**
+- **Complexity:** Moderate (2 files new, 2 files extended, ~300 lines total)
+- **Test data:** 2026 season (round 1-5 complete), historical 2013-2025
+- **No breaking changes:** Fully backward compatible, gracefully handles missing player_form_features.parquet
+- **Timeline:** Builder 1 (player extraction) ~4 hours, Builder 2 (pipeline integration + test) ~3 hours

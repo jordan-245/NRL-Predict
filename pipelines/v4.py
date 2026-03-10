@@ -1000,6 +1000,337 @@ def compute_rolling_match_stats_features(matches, match_stats_df):
 
 
 # =========================================================================
+# PLAYER FORM FEATURES
+# =========================================================================
+
+# Mapping from raw API stat field names → short names used in features
+_SPINE_STAT_MAP: dict[str, str] = {
+    "allRunMetres":       "run_metres",
+    "lineBreaks":         "line_breaks",
+    "tackleBreaks":       "tackle_breaks",
+    "tryAssists":         "try_assists",
+}
+_SQUAD_STAT_MAP: dict[str, str] = {
+    "fantasyPointsTotal": "fantasy",
+    "minutesPlayed":      "minutes",
+}
+# Combined map for building the player log
+_ALL_PLAYER_STAT_MAP: dict[str, str] = {**_SPINE_STAT_MAP, **_SQUAD_STAT_MAP}
+
+# Jersey numbers that define the spine
+_SPINE_JERSEYS: frozenset[int] = frozenset({1, 6, 7, 9})
+
+# Rolling windows
+_PLAYER_ROLLING_WINDOWS: list[int] = [3, 5]
+
+
+def compute_player_form_features(matches, player_stats_df):
+    """Compute per-player rolling form features aggregated to match level.
+
+    For each match, identifies the starting spine (jerseys 1, 6, 7, 9) and
+    starting 13, then computes rolling 3/5-game averages per player using
+    ONLY prior games (no look-ahead bias).  Averages are then aggregated to
+    team-level features.
+
+    Adds columns (42 total):
+
+    **Spine form (24)** — average of 4 spine players' rolling stats:
+      - ``{home,away}_spine_run_metres_{3,5}``
+      - ``{home,away}_spine_line_breaks_{3,5}``
+      - ``{home,away}_spine_tackle_breaks_{3,5}``
+      - ``{home,away}_spine_try_assists_{3,5}``
+      - ``spine_diff_{stat}_{window}`` — home minus away (8 features)
+
+    **Squad quality (12)** — average of starting 13's rolling stats:
+      - ``{home,away}_squad_fantasy_{3,5}``
+      - ``{home,away}_squad_minutes_{3,5}``
+      - ``squad_diff_{stat}_{window}`` — home minus away (4 features)
+
+    **Disruption (6)** — player changes vs previous game:
+      - ``{home,away}_spine_changes``   — # spine positions with new player
+      - ``spine_changes_diff``
+      - ``{home,away}_squad_turnover``  — # starting-13 slots with new player
+      - ``squad_turnover_diff``
+
+    Parameters
+    ----------
+    matches : pd.DataFrame
+        Main matches DataFrame, sorted chronologically, index reset.
+    player_stats_df : pd.DataFrame or None
+        Per-game player stats from ``player_match_stats.parquet``.
+        Must have columns: year, round, team, player_id, jersey_number,
+        is_starter, is_spine, plus the raw stat fields.
+
+    Returns
+    -------
+    pd.DataFrame
+        ``matches`` with new player form columns appended.
+    """
+    print("\n" + "=" * 80)
+    print("  V4: COMPUTING PLAYER FORM FEATURES")
+    print("=" * 80)
+
+    if player_stats_df is None or len(player_stats_df) == 0:
+        print("  WARNING: player_stats_df is None or empty — skipping player form features")
+        return matches
+
+    # Check required columns exist in player_stats_df
+    required_cols = {"year", "round", "team", "player_id", "jersey_number",
+                     "is_starter", "is_spine"}
+    missing_cols = required_cols - set(player_stats_df.columns)
+    if missing_cols:
+        print(f"  WARNING: player_stats_df missing columns {missing_cols} — skipping")
+        return matches
+
+    # Check which stat columns are available
+    available_spine_stats = {
+        api: short for api, short in _SPINE_STAT_MAP.items()
+        if api in player_stats_df.columns
+    }
+    available_squad_stats = {
+        api: short for api, short in _SQUAD_STAT_MAP.items()
+        if api in player_stats_df.columns
+    }
+    available_all_stats = {**available_spine_stats, **available_squad_stats}
+
+    if not available_all_stats:
+        print("  WARNING: No matching stat columns in player_stats_df — skipping")
+        return matches
+
+    df = matches.copy().reset_index(drop=True)
+    df["_match_idx"] = range(len(df))
+    ps = player_stats_df.copy()
+
+    # ── Normalise join keys ───────────────────────────────────────────────────
+    ps["year"] = pd.to_numeric(ps["year"], errors="coerce").astype("Int64")
+    ps["_round_str"] = ps["round"].astype(str)
+    ps["jersey_number"] = pd.to_numeric(ps["jersey_number"], errors="coerce").fillna(0).astype(int)
+    ps["player_id"] = pd.to_numeric(ps["player_id"], errors="coerce")
+
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["_round_str"] = df["round"].astype(str)
+
+    # ── Build match reference: (year, round, team) → (date, match_idx) ───────
+    # Each match creates two entries — one per team
+    match_refs: list[dict] = []
+    for i, row in df.iterrows():
+        for team_col in ("home_team", "away_team"):
+            match_refs.append({
+                "year":       row["year"],
+                "_round_str": row["_round_str"],
+                "team":       row[team_col],
+                "date":       row.get("date"),
+                "match_idx":  int(row["_match_idx"]),
+            })
+    match_ref_df = pd.DataFrame(match_refs)
+    match_ref_df["year"] = match_ref_df["year"].astype("Int64")
+
+    # ── Rename raw stat fields → short names in a working copy ───────────────
+    ps_slim = ps[
+        ["year", "_round_str", "team", "player_id", "jersey_number",
+         "is_starter", "is_spine"]
+        + list(available_all_stats.keys())
+    ].copy()
+    for api_name, short_name in available_all_stats.items():
+        ps_slim[short_name] = pd.to_numeric(ps_slim[api_name], errors="coerce")
+    # Keep only short names (drop originals to avoid duplication)
+    short_cols = list(available_all_stats.values())
+    ps_slim = ps_slim.drop(columns=list(available_all_stats.keys()), errors="ignore")
+
+    # ── Join player stats with match reference ────────────────────────────────
+    ps_joined = ps_slim.merge(
+        match_ref_df,
+        on=["year", "_round_str", "team"],
+        how="inner",
+    )
+
+    if len(ps_joined) == 0:
+        print("  WARNING: No player stats matched to matches — check team names / round formats")
+        df = df.drop(columns=["_match_idx", "_round_str"], errors="ignore")
+        return df
+
+    n_matches_joined = ps_joined["match_idx"].nunique()
+    print(f"  Joined {len(ps_joined)} player-game rows across {n_matches_joined} matches")
+
+    # ── Sort player log chronologically per player ────────────────────────────
+    ps_joined = ps_joined.sort_values(
+        ["player_id", "date", "match_idx"]
+    ).reset_index(drop=True)
+
+    # ── Build per-player rolling-average lookup ───────────────────────────────
+    # lookup[(player_id, match_idx)] = {short_name_w: value, ...}
+    lookup: dict[tuple, dict] = {}
+
+    for pid, p_group in ps_joined.groupby("player_id", sort=False):
+        p_log = p_group.reset_index(drop=True)
+        for i in range(len(p_log)):
+            midx = int(p_log.at[i, "match_idx"])
+            key = (int(pid), midx)
+            prior = p_log.iloc[:i]  # All rows BEFORE this match — no look-ahead
+            lookup[key] = {}
+            for w in _PLAYER_ROLLING_WINDOWS:
+                pw = prior.tail(w)
+                for short_name in short_cols:
+                    vals = pw[short_name].dropna() if short_name in pw.columns else pd.Series([], dtype=float)
+                    lookup[key][f"{short_name}_{w}"] = (
+                        float(vals.mean()) if len(vals) > 0 else np.nan
+                    )
+
+    print(f"  Built rolling lookup for {len(lookup)} (player, match) entries")
+
+    # ── Build team lineup history for disruption features ─────────────────────
+    # team_lineup[(team, match_idx)] = {jersey: player_id}  (starters 1-13 only)
+    team_lineup: dict[tuple, dict] = {}
+
+    starters_df = ps_joined[ps_joined["is_starter"]].copy()
+    for (midx, team), grp in starters_df.groupby(["match_idx", "team"], sort=False):
+        lineup = {
+            int(row["jersey_number"]): int(row["player_id"])
+            for _, row in grp.iterrows()
+            if row["jersey_number"] > 0
+        }
+        team_lineup[(team, int(midx))] = lineup
+
+    # Per-team chronologically sorted match list (for finding previous game)
+    team_game_order: dict[str, list] = {}
+    for (midx, team), _ in starters_df.groupby(["match_idx", "team"], sort=False):
+        team_game_order.setdefault(team, []).append(int(midx))
+    # Sort each team's games by match_idx (which is chronological order)
+    for team in team_game_order:
+        team_game_order[team].sort()
+
+    # ── Attach features to DataFrame ──────────────────────────────────────────
+    # Pre-build per-match player lists for efficient access
+    # match_players[(match_idx, team)] = [(player_id, jersey, is_spine, is_starter)]
+    match_players: dict[tuple, list] = {}
+    for _, row in ps_joined.iterrows():
+        key = (int(row["match_idx"]), row["team"])
+        match_players.setdefault(key, []).append((
+            int(row["player_id"]),
+            int(row["jersey_number"]),
+            bool(row["is_spine"]),
+            bool(row["is_starter"]),
+        ))
+
+    # Determine which spine / squad stats are available
+    spine_short_stats = [s for s in _SPINE_STAT_MAP.values() if s in short_cols]
+    squad_short_stats = [s for s in _SQUAD_STAT_MAP.values() if s in short_cols]
+
+    # Initialise output columns with NaN
+    feature_init_cols = []
+    for side in ("home", "away"):
+        for stat in spine_short_stats:
+            for w in _PLAYER_ROLLING_WINDOWS:
+                feature_init_cols.append(f"{side}_spine_{stat}_{w}")
+        for stat in squad_short_stats:
+            for w in _PLAYER_ROLLING_WINDOWS:
+                feature_init_cols.append(f"{side}_squad_{stat}_{w}")
+        feature_init_cols.append(f"{side}_spine_changes")
+        feature_init_cols.append(f"{side}_squad_turnover")
+
+    for col in feature_init_cols:
+        df[col] = np.nan
+
+    # ── Row-by-row feature computation ────────────────────────────────────────
+    for i in range(len(df)):
+        match_idx = i  # df._match_idx == range(len(df))
+
+        for side, team_col in (("home", "home_team"), ("away", "away_team")):
+            team = df.at[i, team_col]
+            players = match_players.get((match_idx, team), [])
+            if not players:
+                continue
+
+            # ── Spine rolling form ────────────────────────────────────────────
+            spine_pids = [
+                pid for pid, jersey, is_sp, is_st in players
+                if is_sp and is_st
+            ]
+            for stat in spine_short_stats:
+                for w in _PLAYER_ROLLING_WINDOWS:
+                    vals = [
+                        lookup.get((pid, match_idx), {}).get(f"{stat}_{w}", np.nan)
+                        for pid in spine_pids
+                    ]
+                    valid = [v for v in vals if not np.isnan(v)]
+                    df.at[i, f"{side}_spine_{stat}_{w}"] = (
+                        float(np.mean(valid)) if valid else np.nan
+                    )
+
+            # ── Squad (starting 13) rolling form ─────────────────────────────
+            squad_pids = [
+                pid for pid, jersey, is_sp, is_st in players
+                if is_st
+            ]
+            for stat in squad_short_stats:
+                for w in _PLAYER_ROLLING_WINDOWS:
+                    vals = [
+                        lookup.get((pid, match_idx), {}).get(f"{stat}_{w}", np.nan)
+                        for pid in squad_pids
+                    ]
+                    valid = [v for v in vals if not np.isnan(v)]
+                    df.at[i, f"{side}_squad_{stat}_{w}"] = (
+                        float(np.mean(valid)) if valid else np.nan
+                    )
+
+            # ── Disruption: compare lineup with previous game ─────────────────
+            game_order = team_game_order.get(team, [])
+            current_pos = game_order.index(match_idx) if match_idx in game_order else -1
+            if current_pos > 0:
+                prev_midx = game_order[current_pos - 1]
+                current_lineup = team_lineup.get((team, match_idx), {})
+                prev_lineup = team_lineup.get((team, prev_midx), {})
+
+                if current_lineup and prev_lineup:
+                    # Spine changes: positions {1,6,7,9} where player differs
+                    spine_changes = sum(
+                        1 for jersey in _SPINE_JERSEYS
+                        if current_lineup.get(jersey) != prev_lineup.get(jersey)
+                    )
+                    df.at[i, f"{side}_spine_changes"] = float(spine_changes)
+
+                    # Squad turnover: starters (jerseys 1-13) with different player
+                    squad_turnover = sum(
+                        1 for jersey in range(1, 14)
+                        if current_lineup.get(jersey) != prev_lineup.get(jersey)
+                    )
+                    df.at[i, f"{side}_squad_turnover"] = float(squad_turnover)
+
+    # ── Differentials (home − away) ───────────────────────────────────────────
+    for stat in spine_short_stats:
+        for w in _PLAYER_ROLLING_WINDOWS:
+            h = f"home_spine_{stat}_{w}"
+            a = f"away_spine_{stat}_{w}"
+            df[f"spine_diff_{stat}_{w}"] = df[h] - df[a]
+
+    for stat in squad_short_stats:
+        for w in _PLAYER_ROLLING_WINDOWS:
+            h = f"home_squad_{stat}_{w}"
+            a = f"away_squad_{stat}_{w}"
+            df[f"squad_diff_{stat}_{w}"] = df[h] - df[a]
+
+    df["spine_changes_diff"] = df["home_spine_changes"] - df["away_spine_changes"]
+    df["squad_turnover_diff"] = df["home_squad_turnover"] - df["away_squad_turnover"]
+
+    # Clean up temporary columns
+    df = df.drop(columns=["_match_idx", "_round_str"], errors="ignore")
+
+    # Coverage summary
+    form_feat_sample = f"home_spine_{spine_short_stats[0]}_3" if spine_short_stats else None
+    if form_feat_sample and form_feat_sample in df.columns:
+        coverage = df[form_feat_sample].notna().mean() * 100
+    else:
+        coverage = 0.0
+    n_added = (
+        len(spine_short_stats) * len(_PLAYER_ROLLING_WINDOWS) * 3  # home + away + diff
+        + len(squad_short_stats) * len(_PLAYER_ROLLING_WINDOWS) * 3
+        + 6  # disruption: 2×home + 2×away + 2×diff
+    )
+    print(f"  Added {n_added} player form features | Coverage: {coverage:.0f}%")
+    return df
+
+
+# =========================================================================
 # BUILD V4 FEATURE MATRIX
 # =========================================================================
 
@@ -1162,6 +1493,25 @@ def build_v4_feature_matrix(df):
 
     # V4 Referee features
     feature_cols += ["ref_home_win_rate", "ref_games", "ref_is_high_home"]
+
+    # V4 Player form features (42)
+    # 4 spine stats × 2 windows × 3 (home/away/diff) = 24
+    # 2 squad stats × 2 windows × 3 = 12
+    # disruption: 2×home + 2×away + 2×diff = 6
+    _spine_stats = ["run_metres", "line_breaks", "tackle_breaks", "try_assists"]
+    _squad_stats = ["fantasy", "minutes"]
+    for stat in _spine_stats:
+        for w in [3, 5]:
+            feature_cols += [f"home_spine_{stat}_{w}", f"away_spine_{stat}_{w}",
+                             f"spine_diff_{stat}_{w}"]
+    for stat in _squad_stats:
+        for w in [3, 5]:
+            feature_cols += [f"home_squad_{stat}_{w}", f"away_squad_{stat}_{w}",
+                             f"squad_diff_{stat}_{w}"]
+    feature_cols += [
+        "home_spine_changes", "away_spine_changes", "spine_changes_diff",
+        "home_squad_turnover", "away_squad_turnover", "squad_turnover_diff",
+    ]
 
     # Filter to existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]

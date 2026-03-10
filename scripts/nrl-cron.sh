@@ -138,11 +138,12 @@ tips)
     fi
     echo "$(ts) Predictions generated" >> "$LOG"
 
-    # Step 1b: Capture baseline teamlists for pregame comparisons.
+    # Step 1b: Detect round + capture baseline teamlists for pregame comparisons.
     # This snapshot becomes the reference for detecting game-day scratches.
     # Pregame checks diff fresh NRL.com data against this baseline, so only
     # genuine late scratches are flagged (not off-season roster moves).
-    echo "$(ts) Capturing baseline teamlists for Round $ROUND..." >> "$LOG"
+    ROUND=$(detect_round)
+    echo "$(ts) Capturing baseline teamlists for Round ${ROUND:-?}..." >> "$LOG"
     $PY -c "
 import sys, glob, re; sys.path.insert(0, '.')
 from scraping.nrl_teamlists import save_baseline, fetch_round_teamlists
@@ -167,8 +168,10 @@ else:
         exit 1
     fi
 
-    # Step 3: Submit tips
-    ROUND=$(detect_round)
+    # Step 3: Submit tips (ROUND already set in Step 1b)
+    if [ -z "${ROUND:-}" ]; then
+        ROUND=$(detect_round)
+    fi
     if [ -z "$ROUND" ]; then
         echo "$(ts) ── No prediction file found ──" >> "$LOG"
         notify error "tips-no-predictions" "$LOG"

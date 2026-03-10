@@ -7,8 +7,8 @@ const AGENT_NAME = "builder-2";
 const CAPABILITY = "builder";
 const WORKTREE_PATH = "/root/NRL-Predict/.pi-swarm/worktrees/builder-2";
 const IS_READ_ONLY = false;
-const ALLOWED_FILES: string[] = [];
-const HAS_ALLOWLIST = false;
+const ALLOWED_FILES: string[] = ["scripts/backtest_player_features.py"];
+const HAS_ALLOWLIST = true;
 
 const WRITE_TOOLS = new Set(["write", "edit", "Write", "Edit"]);
 

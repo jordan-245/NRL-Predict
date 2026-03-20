@@ -38,3 +38,117 @@ Traceback (most recent call last):
     raise FeatureNotFound(
 bs4.exceptions.FeatureNotFound: Couldn't find a tree builder with the features you requested: lxml. Do you need to install a parser library?
 2026-03-09 20:00:06 ── NRL refresh FAILED ──
+2026-03-16 20:00:01 ── NRL refresh starting ──
+============================================================
+  NRL Weekly Data Refresh — 2026
+============================================================
+
+  Auto-detected last round: 1
+
+  STEP 1: Scraping Round 1 of 2026 from RLP...
+    Parsed 8 matches
+    Parsed 17 ladder rows
+
+  STEP 1b: Scraping match stats for Round 1 of 2026...
+    Fetched 8 match stat rows
+    Saved match_stats.parquet — 2172 total rows (8 new for Round 1)
+
+  STEP 1c: Scraping player stats for Round 1 of 2026...
+    Fetched 304 player stat rows
+    Saved player_match_stats.parquet — 75832 total rows (304 new for Round 1)
+
+  STEP 2: Updating matches.parquet...
+  Home/away fix: 2 swapped, 3 kept, 3 neutral/unmatched
+  Result: 6 home wins, 2 away wins, 0 draws (75.0% home win rate)
+    Updated: 2769 total matches
+
+  STEP 3: Updating ladders.parquet...
+    Updated: 6156 total ladder rows
+
+  STEP 4: Updating player_appearances.parquet...
+    Updated: 85108 total appearances
+
+  STEP 5: Rebuilding player impact scores...
+
+  Computing player impact scores...
+  Computed impact scores for 363 player-team combos
+  Spine players: 105
+
+  Top 10 positive impact:
+    Horsburgh            Canberra Raiders                PR  impact=+0.358  conf=1.00  (27G/23M)
+    Kaufusi              Dolphins                        PR  impact=+0.356  conf=1.00  (34G/15M)
+    Paix                 Brisbane Broncos                HK  impact=+0.350  conf=1.00  (16G/35M)
+    Tuaupiki             New Zealand Warriors            FB  impact=+0.311  conf=1.00  (20G/29M)
+    Humphreys            South Sydney Rabbitohs          HB  impact=+0.305  conf=1.00  (17G/32M)
+    Hughes               Melbourne Storm                 HB  impact=+0.285  conf=0.93  (39G/14M)
+    Smith                Parramatta Eels                 HK  impact=+0.263  conf=1.00  (16G/33M)
+    Metcalf              New Zealand Warriors            HB  impact=+0.258  conf=1.00  (22G/27M)
+    Vailea               North Queensland Cowboys        CE  impact=+0.256  conf=1.00  (30G/20M)
+    Arrow                South Sydney Rabbitohs          2R  impact=+0.253  conf=1.00  (34G/15M)
+
+  Top 10 negative impact (team worse when they play):
+    Lussick              Parramatta Eels                 HK  impact=-0.218  conf=1.00  (15G/34M)
+    Martin               New Zealand Warriors            FE  impact=-0.220  conf=1.00  (18G/31M)
+    Mam                  Brisbane Broncos                FE  impact=-0.221  conf=1.00  (29G/22M)
+    Harris               New Zealand Warriors            LK  impact=-0.304  conf=0.73  (11G/38M)
+    Haas                 Brisbane Broncos                PR  impact=-0.224  conf=1.00  (36G/15M)
+    Laurie               Penrith Panthers                FB  impact=-0.311  conf=1.00  (15G/38M)
+    Johnson              New Zealand Warriors            HB  impact=-0.315  conf=1.00  (16G/33M)
+    Cole                 Penrith Panthers                FE  impact=-0.450  conf=0.73  (11G/42M)
+    Cobbo                Brisbane Broncos                CE  impact=-0.342  conf=1.00  (34G/17M)
+    Tuivasa-Sheck        New Zealand Warriors            WG  impact=-0.433  conf=0.80  (37G/12M)
+    Saved: 363 player impact scores
+
+  STEP 6: Invalidating model cache...
+    Removed 1 cache files
+
+  STEP 7: Recording tipping results...
+    tipping_tracker.py not available, skipping
+
+============================================================
+  Refresh completed in 24.1s
+  Next: python predict_round.py --auto
+============================================================
+2026-03-16 20:00:27 ── NRL refresh complete ──
+2026-03-16 20:00:27 ── Weekly evaluation starting ──
+[20:00:27] Evaluating Round 1 (2026)...
+[20:00:27]   Round 1: 3/7 correct (odds: 4/7, model: 3/7)
+[20:00:27]   Saved 7 results to /root/NRL-Predict/outputs/evaluation/season_2026.csv
+[20:00:27]   Season: 3/7 (42.9%), edge vs odds: -1
+2026-03-16 20:00:43 ── Weekly evaluation complete ──
+2026-03-16 20:00:43 ── Planning week schedule ──
+
+  Fetching upcoming round kickoff times...
+  [Odds API] Quota: 58 used, 442 remaining
+  Round 3: 8 fixtures
+
+======================================================================
+  NRL WEEKLY SCHEDULE — ROUND 3
+  Generated: 2026-03-16 20:00 AEST
+======================================================================
+
+  First kickoff:  2026-03-19 19:00 AEST
+  Last kickoff:   2026-03-22 17:15 AEST
+  Tip deadline:   2026-03-19 16:00 AEST
+
+  GAME DAYS:
+  ------------------------------------------------------------
+  Thursday   2026-03-19  (1 game)  checks 17:00-19:30
+    • Canberra Raiders v Canterbury Bulldogs (2026-03-19 19:00)
+  Friday     2026-03-20  (2 games)  checks 15:00-19:30
+    • Sydney Roosters v Penrith Panthers (2026-03-20 17:00)
+    • Melbourne Storm v Brisbane Broncos (2026-03-20 19:00)
+  Saturday   2026-03-21  (3 games)  checks 12:00-19:05
+    • Newcastle Knights v New Zealand Warriors (2026-03-21 14:00)
+    • Cronulla Sharks v Dolphins (2026-03-21 16:30)
+    • South Sydney Rabbitohs v Wests Tigers (2026-03-21 18:35)
+  Sunday     2026-03-22  (2 games)  checks 13:05-17:45
+    • Parramatta Eels v St George Illawarra Dragons (2026-03-22 15:05)
+    • North Queensland Cowboys v Gold Coast Titans (2026-03-22 17:15)
+
+  PREGAME CRON: */30 12-20 * * 0,4,5,6
+======================================================================
+
+  Schedule saved to /root/NRL-Predict/config/week_schedule.json
+  ✓ Pregame cron updated: */30 12-20 * * 0,4,5,6
+2026-03-16 20:00:45 ── Week schedule planned ──

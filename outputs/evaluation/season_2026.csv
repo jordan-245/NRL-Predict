@@ -1,2 +1,16 @@
 home_team,away_team,tip,odds_tip,model_tip,actual_winner,actual_margin,home_win_prob,odds_home_prob,model_prob,confidence,home_score,away_score,tip_correct,odds_correct,model_correct,year,round
 Canterbury Bulldogs,St George Illawarra Dragons,Canterbury Bulldogs,Canterbury Bulldogs,Canterbury Bulldogs,Canterbury Bulldogs,1.0,0.583329617017037,0.5267379679144386,0.5812916970283248,0.166659234034074,15.0,14.0,1,1,1,2026,1
+Melbourne Storm,Parramatta Eels,Melbourne Storm,Melbourne Storm,Melbourne Storm,Melbourne Storm,48.0,0.6582458372540476,0.6486270327912557,0.645037234983898,0.3164916745080952,52.0,4.0,1,1,1,2026,1
+New Zealand Warriors,Sydney Roosters,Sydney Roosters,Sydney Roosters,Sydney Roosters,New Zealand Warriors,24.0,0.4213470628026746,0.3766162310866574,0.4471888832144002,0.1573058743946507,42.0,18.0,0,0,0,2026,1
+Brisbane Broncos,Penrith Panthers,Brisbane Broncos,Brisbane Broncos,Brisbane Broncos,Penrith Panthers,26.0,0.6229359568281441,0.5586027713625866,0.6201364580927616,0.2458719136562881,0.0,26.0,0,0,0,2026,1
+Cronulla Sharks,Gold Coast Titans,Cronulla Sharks,Cronulla Sharks,Cronulla Sharks,Cronulla Sharks,40.0,0.763356648331226,0.7021328757048296,0.7668518897837069,0.5267132966624519,50.0,10.0,1,1,1,2026,1
+Manly Sea Eagles,Canberra Raiders,Manly Sea Eagles,Canberra Raiders,Manly Sea Eagles,Canberra Raiders,1.0,0.6509945163235644,0.4983941605839416,0.6638186764538738,0.3019890326471288,28.0,29.0,0,1,0,2026,1
+Dolphins,South Sydney Rabbitohs,Dolphins,Dolphins,Dolphins,South Sydney Rabbitohs,10.0,0.5756190009572199,0.5295487627365357,0.572360045856302,0.1512380019144397,40.0,30.0,0,0,0,2026,1
+Brisbane Broncos,Parramatta Eels,Brisbane Broncos,Brisbane Broncos,Brisbane Broncos,Parramatta Eels,8.0,0.7756393007170991,0.7557628013373219,0.7671397307456745,0.5512786014341982,32.0,40.0,0,0,0,2026,2
+New Zealand Warriors,Canberra Raiders,Canberra Raiders,New Zealand Warriors,Canberra Raiders,New Zealand Warriors,34.0,0.4271851256526168,0.5132237312365976,0.4355134867069126,0.1456297486947664,40.0,6.0,0,1,0,2026,2
+Sydney Roosters,South Sydney Rabbitohs,Sydney Roosters,Sydney Roosters,Sydney Roosters,Sydney Roosters,8.0,0.6093694062437629,0.5361117688846792,0.6028847022591795,0.2187388124875258,26.0,18.0,1,1,1,2026,2
+Wests Tigers,North Queensland Cowboys,Wests Tigers,Wests Tigers,Wests Tigers,Wests Tigers,28.0,0.5943122455164997,0.602840128263857,0.5848097260869793,0.1886244910329995,44.0,16.0,1,1,1,2026,2
+St George Illawarra Dragons,Melbourne Storm,Melbourne Storm,Melbourne Storm,Melbourne Storm,Melbourne Storm,26.0,0.2649606590984285,0.3164530797850351,0.2773893920578612,0.470078681803143,20.0,46.0,1,1,1,2026,2
+Penrith Panthers,Cronulla Sharks,Penrith Panthers,Penrith Panthers,Penrith Panthers,Penrith Panthers,20.0,0.7083407731908056,0.6991738867620392,0.6933807173116328,0.4166815463816111,26.0,6.0,1,1,1,2026,2
+Manly Sea Eagles,Newcastle Knights,Manly Sea Eagles,Manly Sea Eagles,Manly Sea Eagles,Newcastle Knights,20.0,0.6718376440916992,0.5992191088654112,0.6632967832892536,0.3436752881833984,16.0,36.0,0,0,0,2026,2
+Dolphins,Gold Coast Titans,Dolphins,Dolphins,Dolphins,Dolphins,4.0,0.7477120225572591,0.6875771287535993,0.7409036540870713,0.4954240451145182,18.0,14.0,1,1,1,2026,2

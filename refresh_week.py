@@ -53,12 +53,14 @@ MODEL_CACHE_DIR = PROJECT_ROOT / "outputs" / "model_cache"
 
 
 def detect_last_round(year: int) -> int | None:
-    """Auto-detect the last completed round from matches.parquet.
+    """Auto-detect the next round needing results scraped.
 
-    Primary: highest round with non-null scores (already scraped).
-    Fallback: if no scores yet (start-of-season), find the latest
-    round where at least one fixture date is in the past — that round
-    needs its results scraped for the first time.
+    Logic: find the highest round whose fixture dates have passed
+    but whose scores are NOT yet in the database. This correctly
+    handles catch-up after missed refreshes (e.g. if Round 1 is
+    scraped but Round 2 has been played, returns 2 not 1).
+
+    Falls back to start-of-season detection when no scores exist yet.
     """
     matches_path = PROCESSED_DIR / "matches.parquet"
     if not matches_path.exists():
@@ -70,36 +72,46 @@ def detect_last_round(year: int) -> int | None:
     if year_matches.empty:
         return None
 
-    # Find the highest round number with non-null scores
+    # Find which rounds already have scores
     played = year_matches.dropna(subset=["home_score"])
+    scraped_rounds = set()
     if not played.empty:
-        rounds = []
         for r in played["round"].unique():
             try:
-                rounds.append(int(r))
+                scraped_rounds.add(int(r))
             except (ValueError, TypeError):
                 pass
-        if rounds:
-            return max(rounds)
 
-    # ── Fallback: start-of-season, no scores scraped yet ──────────
-    # Look for fixture rounds where at least one match date has passed.
+    # Find which rounds have fixture dates in the past (games completed)
+    now = pd.Timestamp.now()
+    completed_rounds = set()
     if "parsed_date" in year_matches.columns:
-        now = pd.Timestamp.now()
-        past = year_matches[year_matches["parsed_date"] < now]
-        if not past.empty:
-            rounds = []
-            for r in past["round"].unique():
-                try:
-                    rounds.append(int(r))
-                except (ValueError, TypeError):
-                    pass
-            if rounds:
-                detected = max(rounds)
-                print(f"  (start-of-season fallback: round {detected} "
-                      f"has past fixture dates but no scores yet)")
-                return detected
+        # A round is "completed" if ALL its games have kicked off
+        for r in year_matches["round"].unique():
+            try:
+                r_int = int(r)
+            except (ValueError, TypeError):
+                continue
+            round_matches = year_matches[year_matches["round"] == r]
+            round_dates = round_matches["parsed_date"].dropna()
+            if not round_dates.empty and (round_dates < now).all():
+                completed_rounds.add(r_int)
 
+    # The rounds needing scraping = completed but not yet scraped
+    unscraped = completed_rounds - scraped_rounds
+    if unscraped:
+        # Return the LOWEST unscraped round (process in order)
+        target = min(unscraped)
+        if scraped_rounds:
+            print(f"  (catch-up: rounds {sorted(scraped_rounds)} already scraped, "
+                  f"round {target} needs scraping)")
+        else:
+            print(f"  (start-of-season: round {target} has completed but no scores yet)")
+        return target
+
+    # Everything is caught up — return None (nothing to scrape)
+    if scraped_rounds:
+        print(f"  (all completed rounds already scraped: {sorted(scraped_rounds)})")
     return None
 
 
@@ -386,10 +398,10 @@ def step7_record_tips(year: int, round_num: int):
     print(f"\n  STEP 7: Recording tipping results...")
 
     try:
-        from tipping_tracker import record_round_results
-        record_round_results(year, round_num)
-    except ImportError:
-        print("    tipping_tracker.py not available, skipping")
+        from tipping_tracker import record_round
+        record_round(round_num, year, auto=True)
+    except ImportError as e:
+        print(f"    tipping_tracker.py not available ({e}), skipping")
     except Exception as e:
         print(f"    ERROR: {e}")
 
@@ -415,45 +427,73 @@ def main():
     print(f"  NRL Weekly Data Refresh — {year}")
     print("=" * 60)
 
-    # Auto-detect round
-    round_num = args.round
-    if round_num is None:
-        round_num = detect_last_round(year)
-        if round_num is None:
-            print("\n  ERROR: Could not auto-detect last round.")
-            print("  Use --round N to specify.")
-            sys.exit(1)
-        print(f"\n  Auto-detected last round: {round_num}")
+    # Auto-detect round(s)
+    if args.round is not None:
+        rounds_to_process = [args.round]
+        print(f"\n  Target round: {args.round}")
     else:
-        print(f"\n  Target round: {round_num}")
+        # Detect ALL rounds needing scraping (catch-up mode)
+        rounds_to_process = []
+        while True:
+            r = detect_last_round(year)
+            if r is None:
+                break
+            if r in rounds_to_process:
+                break  # safety: prevent infinite loop
+            rounds_to_process.append(r)
+            # Temporarily mark this round as "will be processed" by
+            # breaking — we'll loop in the processing section below
+            break
 
-    if args.full_rebuild:
-        print("\n  FULL REBUILD MODE — rebuilding all player data from scratch")
-        from processing.build_player_data import build_full, OUTPUT_PATH as APP_PATH
-        df = build_full()
-        if not df.empty:
-            df.to_parquet(APP_PATH, index=False)
+        if not rounds_to_process:
+            print("\n  No rounds need scraping — all caught up!")
+            print("  Use --round N to force a specific round.")
+            sys.exit(0)
+        print(f"\n  Auto-detected round(s) to process: {rounds_to_process}")
 
-        step5_rebuild_player_impact()
-        step6_invalidate_cache(year)
+    def _process_round(round_num: int):
+        """Process a single round (scrape + update)."""
+        print(f"\n  {'─' * 50}")
+        print(f"  Processing Round {round_num}")
+        print(f"  {'─' * 50}")
 
-    else:
-        # Incremental update
-        if not args.skip_scrape:
-            new_matches, new_ladders = step1_scrape_round(year, round_num)
-            step_scrape_match_stats(year, round_num)
-            step_scrape_player_stats(year, round_num)
-            step2_update_matches(new_matches, year, round_num)
-            step3_update_ladders(new_ladders, year, round_num)
+        if args.full_rebuild:
+            print("\n  FULL REBUILD MODE — rebuilding all player data from scratch")
+            from processing.build_player_data import build_full, OUTPUT_PATH as APP_PATH
+            df = build_full()
+            if not df.empty:
+                df.to_parquet(APP_PATH, index=False)
+            step5_rebuild_player_impact()
+            step6_invalidate_cache(year)
         else:
-            print("\n  Skipping RLP scrape (--skip-scrape)")
+            # Incremental update
+            if not args.skip_scrape:
+                new_matches, new_ladders = step1_scrape_round(year, round_num)
+                step_scrape_match_stats(year, round_num)
+                step_scrape_player_stats(year, round_num)
+                step2_update_matches(new_matches, year, round_num)
+                step3_update_ladders(new_ladders, year, round_num)
+            else:
+                print("\n  Skipping RLP scrape (--skip-scrape)")
 
-        step4_update_player_appearances(year, round_num)
-        step5_rebuild_player_impact()
-        step6_invalidate_cache(year)
+            step4_update_player_appearances(year, round_num)
+            step5_rebuild_player_impact()
+            step6_invalidate_cache(year)
 
-    if args.record_tips:
-        step7_record_tips(year, round_num)
+        if args.record_tips:
+            step7_record_tips(year, round_num)
+
+    # Process first detected round
+    _process_round(rounds_to_process[0])
+
+    # Catch-up loop: check if more rounds need scraping
+    if args.round is None:
+        while True:
+            next_round = detect_last_round(year)
+            if next_round is None:
+                break
+            print(f"\n  ⚡ Catch-up: Round {next_round} also needs scraping")
+            _process_round(next_round)
 
     elapsed = time.time() - t_start
     print(f"\n{'=' * 60}")

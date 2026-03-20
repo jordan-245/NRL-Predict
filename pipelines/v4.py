@@ -693,6 +693,104 @@ def compute_v4_engineered_features(df):
 # =========================================================================
 # TEAM SEASON STATS FEATURES
 # =========================================================================
+# SUPERCOACH MATCHUP FEATURES
+# =========================================================================
+
+SC_POINTS_ALLOWED_PATH = PROJECT_ROOT / "data" / "processed" / "sc_points_allowed.parquet"
+
+# Position groups for aggregation
+_SC_SPINE = {"FLB", "HFB", "FE", "HOK"}
+_SC_FORWARDS = {"FRF", "2RF"}
+_SC_BACKS = {"CTW"}
+
+
+def compute_sc_matchup_features(matches):
+    """Add SuperCoach defensive-matchup features using prior-season data.
+
+    For a match in year Y, each team's *opponent* gets their SC points-allowed
+    profile from year Y-1.  This measures "how leaky is the opponent's defence
+    at each position group?" — a matchup feature, not a quality metric.
+
+    Features added (12 total):
+      - home_opp_sc_spine / away_opp_sc_spine / sc_spine_diff
+        (avg SC points away/home team allowed to spine positions last season)
+      - home_opp_sc_forward / away_opp_sc_forward / sc_forward_diff
+      - home_opp_sc_back / away_opp_sc_back / sc_back_diff
+      - home_opp_sc_total / away_opp_sc_total / sc_total_diff
+    """
+    print("\n" + "=" * 80)
+    print("  V4: COMPUTING SUPERCOACH MATCHUP FEATURES")
+    print("=" * 80)
+
+    df = matches.copy()
+
+    if not SC_POINTS_ALLOWED_PATH.exists():
+        print("  No sc_points_allowed.parquet found — skipping")
+        for grp in ["spine", "forward", "back", "total"]:
+            df[f"home_opp_sc_{grp}"] = np.nan
+            df[f"away_opp_sc_{grp}"] = np.nan
+            df[f"sc_{grp}_diff"] = np.nan
+        return df
+
+    sc = pd.read_parquet(SC_POINTS_ALLOWED_PATH)
+
+    # Build lookup: (team, season) → {group: avg_points_allowed}
+    # Pre-aggregate to position groups
+    sc_lookup: dict[tuple, dict] = {}
+    for (team, season), grp in sc.groupby(["team", "season"]):
+        pos_vals = dict(zip(grp["position"], grp["avg_points_allowed"]))
+
+        spine_vals = [v for p, v in pos_vals.items() if p in _SC_SPINE]
+        fwd_vals = [v for p, v in pos_vals.items() if p in _SC_FORWARDS]
+        back_vals = [v for p, v in pos_vals.items() if p in _SC_BACKS]
+        all_vals = list(pos_vals.values())
+
+        sc_lookup[(team, season)] = {
+            "spine": float(np.mean(spine_vals)) if spine_vals else np.nan,
+            "forward": float(np.mean(fwd_vals)) if fwd_vals else np.nan,
+            "back": float(np.mean(back_vals)) if back_vals else np.nan,
+            "total": float(np.mean(all_vals)) if all_vals else np.nan,
+        }
+
+    # For each match in year Y:
+    #   home team faces away_team — use away_team's Y-1 allowed as "home_opp_sc_*"
+    #   away team faces home_team — use home_team's Y-1 allowed as "away_opp_sc_*"
+    for grp in ["spine", "forward", "back", "total"]:
+        home_vals = []
+        away_vals = []
+        for _, row in df.iterrows():
+            year = row.get("year", row.get("season"))
+            prior = int(year) - 1 if pd.notna(year) else None
+
+            # Home team's opponent (away_team) defensive profile from prior season
+            away_profile = sc_lookup.get((row["away_team"], prior), {})
+            home_vals.append(away_profile.get(grp, np.nan))
+
+            # Away team's opponent (home_team) defensive profile from prior season
+            home_profile = sc_lookup.get((row["home_team"], prior), {})
+            away_vals.append(home_profile.get(grp, np.nan))
+
+        df[f"home_opp_sc_{grp}"] = home_vals
+        df[f"away_opp_sc_{grp}"] = away_vals
+        df[f"sc_{grp}_diff"] = df[f"home_opp_sc_{grp}"] - df[f"away_opp_sc_{grp}"]
+
+    # Coverage stats
+    coverage = df["home_opp_sc_spine"].notna().mean() * 100
+    n_features = 12
+    print(f"  Added {n_features} SC matchup features | Coverage: {coverage:.0f}%")
+
+    # Show sample values for sanity check
+    valid = df[df["home_opp_sc_spine"].notna()]
+    if len(valid) > 0:
+        print(f"  SC spine allowed range: [{valid['home_opp_sc_spine'].min():.3f}, "
+              f"{valid['home_opp_sc_spine'].max():.3f}]")
+        print(f"  SC total diff range: [{valid['sc_total_diff'].min():.3f}, "
+              f"{valid['sc_total_diff'].max():.3f}]")
+
+    return df
+
+
+# =========================================================================
 # REFEREE FEATURES
 # =========================================================================
 
@@ -1491,6 +1589,10 @@ def build_v4_feature_matrix(df):
     for stat in _TS_COLS:
         feature_cols += [f"home_ts_{stat}", f"away_ts_{stat}", f"ts_diff_{stat}"]
 
+    # V4 SuperCoach matchup features (12)
+    for grp in ["spine", "forward", "back", "total"]:
+        feature_cols += [f"home_opp_sc_{grp}", f"away_opp_sc_{grp}", f"sc_{grp}_diff"]
+
     # V4 Referee features
     feature_cols += ["ref_home_win_rate", "ref_games", "ref_is_high_home"]
 
@@ -2218,6 +2320,7 @@ def main():
     matches = compute_lineup_stability_features(matches)
     matches = compute_player_impact_features(matches)
     matches = compute_v4_engineered_features(matches)
+    matches = compute_sc_matchup_features(matches)
 
     # === STEP 7: Build V4 feature matrix ===
     features, feature_cols = build_v4_feature_matrix(matches)

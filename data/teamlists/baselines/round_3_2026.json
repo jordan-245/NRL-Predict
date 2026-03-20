@@ -1,0 +1,1282 @@
+{
+  "Canberra Raiders": {
+    "1": {
+      "full_name": "Kaeo Weekes",
+      "last_name": "Weekes",
+      "player_id": 507846,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Savelio Tamale",
+      "last_name": "Tamale",
+      "player_id": 100013751,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Simi Sasagi",
+      "last_name": "Sasagi",
+      "player_id": 100000129,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Sebastian Kris",
+      "last_name": "Kris",
+      "player_id": 504148,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Xavier Savage",
+      "last_name": "Savage",
+      "player_id": 510220,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Ethan Strange",
+      "last_name": "Strange",
+      "player_id": 100006524,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Ethan Sanders",
+      "last_name": "Sanders",
+      "player_id": 100003925,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Josh Papalii",
+      "last_name": "Papalii",
+      "player_id": 500973,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Tom Starling",
+      "last_name": "Starling",
+      "player_id": 504072,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Joseph Tapine",
+      "last_name": "Tapine",
+      "player_id": 500555,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Hudson Young",
+      "last_name": "Young",
+      "player_id": 504074,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Noah Martin",
+      "last_name": "Martin",
+      "player_id": 100006323,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Corey Horsburgh",
+      "last_name": "Horsburgh",
+      "player_id": 506018,
+      "position": "Lock"
+    }
+  },
+  "Canterbury Bulldogs": {
+    "1": {
+      "full_name": "Connor Tracey",
+      "last_name": "Tracey",
+      "player_id": 502015,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Jacob Kiraz",
+      "last_name": "Kiraz",
+      "player_id": 100004133,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Enari Tuala",
+      "last_name": "Tuala",
+      "player_id": 504372,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Stephen Crichton",
+      "last_name": "Crichton",
+      "player_id": 508062,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Marcelo Montoya",
+      "last_name": "Montoya",
+      "player_id": 502487,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Matt Burton",
+      "last_name": "Burton",
+      "player_id": 509397,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Lachlan Galvin",
+      "last_name": "Galvin",
+      "player_id": 100007336,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Max King",
+      "last_name": "King",
+      "player_id": 504397,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Bailey Hayward",
+      "last_name": "Hayward",
+      "player_id": 505864,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Samuel Hughes",
+      "last_name": "Hughes",
+      "player_id": 508408,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Viliame Kikau",
+      "last_name": "Kikau",
+      "player_id": 500408,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Jacob Preston",
+      "last_name": "Preston",
+      "player_id": 507878,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Jaeman Salmon",
+      "last_name": "Salmon",
+      "player_id": 504301,
+      "position": "Lock"
+    }
+  },
+  "Sydney Roosters": {
+    "1": {
+      "full_name": "James Tedesco",
+      "last_name": "Tedesco",
+      "player_id": 500663,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Daniel Tupou",
+      "last_name": "Tupou",
+      "player_id": 500002,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Fetalaiga Pauga",
+      "last_name": "Pauga",
+      "player_id": 504006,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Robert Toia",
+      "last_name": "Toia",
+      "player_id": 100008243,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Mark Nawaqanitawase",
+      "last_name": "Nawaqanitawase",
+      "player_id": 100018452,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Daly Cherry-Evans",
+      "last_name": "Cherry-Evans",
+      "player_id": 500024,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Sam Walker",
+      "last_name": "Walker",
+      "player_id": 100004843,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Naufahu Whyte",
+      "last_name": "Whyte",
+      "player_id": 100006390,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Reece Robson",
+      "last_name": "Robson",
+      "player_id": 503944,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Lindsay Collins",
+      "last_name": "Collins",
+      "player_id": 501781,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Angus Crichton",
+      "last_name": "Crichton",
+      "player_id": 503240,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Siua Wong",
+      "last_name": "Wong",
+      "player_id": 100004373,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Egan Butcher",
+      "last_name": "Butcher",
+      "player_id": 504678,
+      "position": "Lock"
+    }
+  },
+  "Penrith Panthers": {
+    "1": {
+      "full_name": "Dylan Edwards",
+      "last_name": "Edwards",
+      "player_id": 503340,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Thomas Jenkins",
+      "last_name": "Jenkins",
+      "player_id": 100007927,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Paul Alamoti",
+      "last_name": "Alamoti",
+      "player_id": 100004042,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Casey McLean",
+      "last_name": "McLean",
+      "player_id": 100011678,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Brian To'o",
+      "last_name": "To'o",
+      "player_id": 505410,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Blaize Talagi",
+      "last_name": "Talagi",
+      "player_id": 100006848,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Nathan Cleary",
+      "last_name": "Cleary",
+      "player_id": 504120,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Moses Leota",
+      "last_name": "Leota",
+      "player_id": 501461,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Mitch Kenny",
+      "last_name": "Kenny",
+      "player_id": 505414,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Lindsay Smith",
+      "last_name": "Smith",
+      "player_id": 505555,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Isaiah Papali'i",
+      "last_name": "Papali'i",
+      "player_id": 505976,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Liam Martin",
+      "last_name": "Martin",
+      "player_id": 504125,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Isaah Yeo",
+      "last_name": "Yeo",
+      "player_id": 500534,
+      "position": "Lock"
+    }
+  },
+  "Melbourne Storm": {
+    "1": {
+      "full_name": "Sualauvi Faalogo",
+      "last_name": "Faalogo",
+      "player_id": 100006297,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Will Warbrick",
+      "last_name": "Warbrick",
+      "player_id": 100010997,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jack Howarth",
+      "last_name": "Howarth",
+      "player_id": 100004865,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Moses Leo",
+      "last_name": "Leo",
+      "player_id": 100018554,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Nick Meaney",
+      "last_name": "Meaney",
+      "player_id": 505537,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Cameron Munster",
+      "last_name": "Munster",
+      "player_id": 501459,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Jahrome Hughes",
+      "last_name": "Hughes",
+      "player_id": 500826,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Stefano Utoikamanu",
+      "last_name": "Utoikamanu",
+      "player_id": 505628,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Harry Grant",
+      "last_name": "Grant",
+      "player_id": 505904,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Josh King",
+      "last_name": "King",
+      "player_id": 501247,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Joe Chan",
+      "last_name": "Chan",
+      "player_id": 100008216,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Ativalu Lisati",
+      "last_name": "Lisati",
+      "player_id": 100010528,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Tui Kamikamica",
+      "last_name": "Kamikamica",
+      "player_id": 500901,
+      "position": "Lock"
+    }
+  },
+  "Brisbane Broncos": {
+    "1": {
+      "full_name": "Reece Walsh",
+      "last_name": "Walsh",
+      "player_id": 510216,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Josiah Karapani",
+      "last_name": "Karapani",
+      "player_id": 100006683,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Kotoni Staggs",
+      "last_name": "Staggs",
+      "player_id": 508009,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Deine Mariner",
+      "last_name": "Mariner",
+      "player_id": 100007650,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Grant Anderson",
+      "last_name": "Anderson",
+      "player_id": 507987,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Ezra Mam",
+      "last_name": "Mam",
+      "player_id": 100004534,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Adam Reynolds",
+      "last_name": "Reynolds",
+      "player_id": 500086,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Corey Jensen",
+      "last_name": "Jensen",
+      "player_id": 500406,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Cory Paix",
+      "last_name": "Paix",
+      "player_id": 506492,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Payne Haas",
+      "last_name": "Haas",
+      "player_id": 504300,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Xavier Willison",
+      "last_name": "Willison",
+      "player_id": 100004833,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Jordan Riki",
+      "last_name": "Riki",
+      "player_id": 100001736,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Patrick Carrigan",
+      "last_name": "Carrigan",
+      "player_id": 506603,
+      "position": "Lock"
+    }
+  },
+  "Newcastle Knights": {
+    "1": {
+      "full_name": "Fletcher Hunt",
+      "last_name": "Hunt",
+      "player_id": 100008414,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Dominic Young",
+      "last_name": "Young",
+      "player_id": 100008071,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Dane Gagai",
+      "last_name": "Gagai",
+      "player_id": 500043,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Bradman Best",
+      "last_name": "Best",
+      "player_id": 506682,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Greg Marzhew",
+      "last_name": "Marzhew",
+      "player_id": 504325,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Fletcher Sharpe",
+      "last_name": "Sharpe",
+      "player_id": 100006482,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Sandon Smith",
+      "last_name": "Smith",
+      "player_id": 509579,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Jacob Saifiti",
+      "last_name": "Saifiti",
+      "player_id": 503523,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Phoenix Crossland",
+      "last_name": "Crossland",
+      "player_id": 504597,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Trey Mooney",
+      "last_name": "Mooney",
+      "player_id": 507915,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Dylan Lucas",
+      "last_name": "Lucas",
+      "player_id": 505582,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Jermaine McEwen",
+      "last_name": "McEwen",
+      "player_id": 100008236,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Tyson Frizell",
+      "last_name": "Frizell",
+      "player_id": 500622,
+      "position": "Lock"
+    }
+  },
+  "New Zealand Warriors": {
+    "1": {
+      "full_name": "Taine Tuaupiki",
+      "last_name": "Tuaupiki",
+      "player_id": 508254,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Dallin Watene-Zelezniak",
+      "last_name": "Watene-Zelezniak",
+      "player_id": 500532,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Ali Leiataua",
+      "last_name": "Leiataua",
+      "player_id": 100006296,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Adam Pompey",
+      "last_name": "Pompey",
+      "player_id": 508026,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Roger Tuivasa-Sheck",
+      "last_name": "Tuivasa-Sheck",
+      "player_id": 500005,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Luke Hanson",
+      "last_name": "Hanson",
+      "player_id": 100006264,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Tanah Boyd",
+      "last_name": "Boyd",
+      "player_id": 506460,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "James Fisher-Harris",
+      "last_name": "Fisher-Harris",
+      "player_id": 502580,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Wayde Egan",
+      "last_name": "Egan",
+      "player_id": 504123,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Jackson Ford",
+      "last_name": "Ford",
+      "player_id": 505423,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Leka Halasima",
+      "last_name": "Halasima",
+      "player_id": 100013674,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Jacob Laban",
+      "last_name": "Laban",
+      "player_id": 100012134,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Erin Clark",
+      "last_name": "Clark",
+      "player_id": 503685,
+      "position": "Lock"
+    }
+  },
+  "Cronulla Sharks": {
+    "1": {
+      "full_name": "William Kennedy",
+      "last_name": "Kennedy",
+      "player_id": 504279,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Sione Katoa",
+      "last_name": "Katoa",
+      "player_id": 503922,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jesse Ramien",
+      "last_name": "Ramien",
+      "player_id": 502072,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "KL Iro",
+      "last_name": "Iro",
+      "player_id": 508649,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Samuel Stonestreet",
+      "last_name": "Stonestreet",
+      "player_id": 509559,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Braydon Trindall",
+      "last_name": "Trindall",
+      "player_id": 504321,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Nicholas Hynes",
+      "last_name": "Hynes",
+      "player_id": 502490,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Addin Fonua-Blake",
+      "last_name": "Fonua-Blake",
+      "player_id": 500449,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Blayke Brailey",
+      "last_name": "Brailey",
+      "player_id": 504274,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Thomas Hazelton",
+      "last_name": "Hazelton",
+      "player_id": 510238,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Briton Nikora",
+      "last_name": "Nikora",
+      "player_id": 507062,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Billy Burns",
+      "last_name": "Burns",
+      "player_id": 505413,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Jesse Colquhoun",
+      "last_name": "Colquhoun",
+      "player_id": 100004272,
+      "position": "Lock"
+    }
+  },
+  "Dolphins": {
+    "1": {
+      "full_name": "Hamiso Tabuai-Fidow",
+      "last_name": "Tabuai-Fidow",
+      "player_id": 100001936,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Jamayne Isaako",
+      "last_name": "Isaako",
+      "player_id": 502014,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jake Averillo",
+      "last_name": "Averillo",
+      "player_id": 505643,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Herbie Farnworth",
+      "last_name": "Farnworth",
+      "player_id": 508300,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Selwyn Cobbo",
+      "last_name": "Cobbo",
+      "player_id": 100004649,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Kodi Nikorima",
+      "last_name": "Nikorima",
+      "player_id": 500265,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Isaiya Katoa",
+      "last_name": "Katoa",
+      "player_id": 100006258,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Tom Gilbert",
+      "last_name": "Gilbert",
+      "player_id": 506156,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Max Plath",
+      "last_name": "Plath",
+      "player_id": 100002172,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Thomas Flegler",
+      "last_name": "Flegler",
+      "player_id": 504315,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Connelly Lemuelu",
+      "last_name": "Lemuelu",
+      "player_id": 507949,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Kulikefu Finefeuiaki",
+      "last_name": "Finefeuiaki",
+      "player_id": 100007811,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Morgan Knowles",
+      "last_name": "Knowles",
+      "player_id": 505736,
+      "position": "Lock"
+    }
+  },
+  "South Sydney Rabbitohs": {
+    "1": {
+      "full_name": "Jye Gray",
+      "last_name": "Gray",
+      "player_id": 100009148,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Alex Johnston",
+      "last_name": "Johnston",
+      "player_id": 500108,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Latrell Mitchell",
+      "last_name": "Mitchell",
+      "player_id": 502502,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Jack Wighton",
+      "last_name": "Wighton",
+      "player_id": 500339,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Campbell Graham",
+      "last_name": "Graham",
+      "player_id": 504294,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Cody Walker",
+      "last_name": "Walker",
+      "player_id": 500611,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Jamie Humphreys",
+      "last_name": "Humphreys",
+      "player_id": 100006585,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Tevita Tatola",
+      "last_name": "Tatola",
+      "player_id": 503450,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Bronson Garlick",
+      "last_name": "Garlick",
+      "player_id": 500168,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Keaon Koloamatangi",
+      "last_name": "Koloamatangi",
+      "player_id": 504174,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "David Fifita",
+      "last_name": "Fifita",
+      "player_id": 506482,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Tallis Duncan",
+      "last_name": "Duncan",
+      "player_id": 509529,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Cameron Murray",
+      "last_name": "Murray",
+      "player_id": 504176,
+      "position": "Lock"
+    }
+  },
+  "Wests Tigers": {
+    "1": {
+      "full_name": "Jahream Bula",
+      "last_name": "Bula",
+      "player_id": 100012669,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Sunia Turuva",
+      "last_name": "Turuva",
+      "player_id": 509455,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jeral Skelton",
+      "last_name": "Skelton",
+      "player_id": 100013303,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Heamasi Makasini",
+      "last_name": "Makasini",
+      "player_id": 100013780,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Luke Laulilii",
+      "last_name": "Laulilii",
+      "player_id": 100011335,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Jarome Luai",
+      "last_name": "Luai",
+      "player_id": 504121,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Adam Doueihi",
+      "last_name": "Doueihi",
+      "player_id": 505811,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Terrell May",
+      "last_name": "May",
+      "player_id": 508065,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Apisai Koroisau",
+      "last_name": "Koroisau",
+      "player_id": 500109,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Fonua Pole",
+      "last_name": "Pole",
+      "player_id": 100004194,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Samuela Fainu",
+      "last_name": "Fainu",
+      "player_id": 510577,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Kai Pearce-Paul",
+      "last_name": "Pearce-Paul",
+      "player_id": 100008107,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Alex Twal",
+      "last_name": "Twal",
+      "player_id": 502532,
+      "position": "Lock"
+    }
+  },
+  "Parramatta Eels": {
+    "1": {
+      "full_name": "Isaiah Iongi",
+      "last_name": "Iongi",
+      "player_id": 100006093,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Bailey Simonsson",
+      "last_name": "Simonsson",
+      "player_id": 504411,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jordan Samrani",
+      "last_name": "Samrani",
+      "player_id": 509558,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Sean Russell",
+      "last_name": "Russell",
+      "player_id": 509762,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Josh Addo-Carr",
+      "last_name": "Addo-Carr",
+      "player_id": 501351,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Jonah Pezet",
+      "last_name": "Pezet",
+      "player_id": 509524,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Mitchell Moses",
+      "last_name": "Moses",
+      "player_id": 500485,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "J'maine Hopgood",
+      "last_name": "Hopgood",
+      "player_id": 507648,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Ryley Smith",
+      "last_name": "Smith",
+      "player_id": 100003898,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Junior Paulo",
+      "last_name": "Paulo",
+      "player_id": 500687,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Kelma Tuilagi",
+      "last_name": "Tuilagi",
+      "player_id": 506628,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Kitione Kautoga",
+      "last_name": "Kautoga",
+      "player_id": 507965,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Jack Williams",
+      "last_name": "Williams",
+      "player_id": 502363,
+      "position": "Lock"
+    }
+  },
+  "St George Illawarra Dragons": {
+    "1": {
+      "full_name": "Clinton Gutherson",
+      "last_name": "Gutherson",
+      "player_id": 500729,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Christian Tuipulotu",
+      "last_name": "Tuipulotu",
+      "player_id": 100003194,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Moses Suli",
+      "last_name": "Suli",
+      "player_id": 504101,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Valentine Holmes",
+      "last_name": "Holmes",
+      "player_id": 500845,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Setu Tu",
+      "last_name": "Tu",
+      "player_id": 510696,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Kyle Flanagan",
+      "last_name": "Flanagan",
+      "player_id": 504363,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Daniel Atkinson",
+      "last_name": "Atkinson",
+      "player_id": 100004700,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Emre Guler",
+      "last_name": "Guler",
+      "player_id": 504426,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Damien Cook",
+      "last_name": "Cook",
+      "player_id": 501600,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Toby Couchman",
+      "last_name": "Couchman",
+      "player_id": 100011308,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Luciano Leilua",
+      "last_name": "Leilua",
+      "player_id": 500459,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Jaydn Su'A",
+      "last_name": "Su'A",
+      "player_id": 503528,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Hamish Stewart",
+      "last_name": "Stewart",
+      "player_id": 100006241,
+      "position": "Lock"
+    }
+  },
+  "North Queensland Cowboys": {
+    "1": {
+      "full_name": "Scott Drinkwater",
+      "last_name": "Drinkwater",
+      "player_id": 504087,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Braidon Burns",
+      "last_name": "Burns",
+      "player_id": 506040,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jaxon Purdue",
+      "last_name": "Purdue",
+      "player_id": 100008940,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Tom Chester",
+      "last_name": "Chester",
+      "player_id": 100004781,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Murray Taulagi",
+      "last_name": "Taulagi",
+      "player_id": 508443,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "Jake Clifford",
+      "last_name": "Clifford",
+      "player_id": 505894,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Tom Dearden",
+      "last_name": "Dearden",
+      "player_id": 506424,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Coen Hess",
+      "last_name": "Hess",
+      "player_id": 500405,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Reed Mahoney",
+      "last_name": "Mahoney",
+      "player_id": 505460,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Jason Taumalolo",
+      "last_name": "Taumalolo",
+      "player_id": 500301,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Heilum Luki",
+      "last_name": "Luki",
+      "player_id": 100001946,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Sam McIntyre",
+      "last_name": "McIntyre",
+      "player_id": 504065,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Reuben Cotter",
+      "last_name": "Cotter",
+      "player_id": 504374,
+      "position": "Lock"
+    }
+  },
+  "Gold Coast Titans": {
+    "1": {
+      "full_name": "Keano Kini",
+      "last_name": "Kini",
+      "player_id": 100009209,
+      "position": "Fullback"
+    },
+    "2": {
+      "full_name": "Sialetili Faeamani",
+      "last_name": "Faeamani",
+      "player_id": 100014118,
+      "position": "Winger"
+    },
+    "3": {
+      "full_name": "Jojo Fifita",
+      "last_name": "Fifita",
+      "player_id": 100008220,
+      "position": "Centre"
+    },
+    "4": {
+      "full_name": "Max Feagai",
+      "last_name": "Feagai",
+      "player_id": 507924,
+      "position": "Centre"
+    },
+    "5": {
+      "full_name": "Phillip Sami",
+      "last_name": "Sami",
+      "player_id": 505918,
+      "position": "Winger"
+    },
+    "6": {
+      "full_name": "AJ Brimson",
+      "last_name": "Brimson",
+      "player_id": 506259,
+      "position": "Five-Eighth"
+    },
+    "7": {
+      "full_name": "Lachlan Ilias",
+      "last_name": "Ilias",
+      "player_id": 505564,
+      "position": "Halfback"
+    },
+    "8": {
+      "full_name": "Moeaki Fotuaika",
+      "last_name": "Fotuaika",
+      "player_id": 506278,
+      "position": "Prop"
+    },
+    "9": {
+      "full_name": "Sam Verrills",
+      "last_name": "Verrills",
+      "player_id": 504462,
+      "position": "Hooker"
+    },
+    "10": {
+      "full_name": "Tino Fa'asuamaleaui",
+      "last_name": "Fa'asuamaleaui",
+      "player_id": 506513,
+      "position": "Prop"
+    },
+    "11": {
+      "full_name": "Arama Hau",
+      "last_name": "Hau",
+      "player_id": 100009453,
+      "position": "2nd Row"
+    },
+    "12": {
+      "full_name": "Beau Fermor",
+      "last_name": "Fermor",
+      "player_id": 506314,
+      "position": "2nd Row"
+    },
+    "13": {
+      "full_name": "Chris Randall",
+      "last_name": "Randall",
+      "player_id": 100001349,
+      "position": "Lock"
+    }
+  }
+}

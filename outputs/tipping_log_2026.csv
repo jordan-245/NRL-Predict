@@ -1,0 +1,9 @@
+season,round,home_team,away_team,category,tip,model_pick,odds_fav,home_score,away_score,winner,tip_correct,model_correct,fav_correct,model_agreed_odds,h2h_home,h2h_away,model_home_prob,odds_home_prob
+2026,2,Brisbane Broncos,Parramatta Eels,LOCK,Brisbane Broncos,Brisbane Broncos,Brisbane Broncos,32,40,Parramatta Eels,0,0,0,1,1.261818181818182,3.904545454545455,0.7756393007170991,0.7557628013373219
+2026,2,New Zealand Warriors,Canberra Raiders,TOSS-UP,Canberra Raiders,Canberra Raiders,New Zealand Warriors,40,6,New Zealand Warriors,0,0,1,0,1.8572727272727272,1.958181818181818,0.4271851256526168,0.5132237312365976
+2026,2,Sydney Roosters,South Sydney Rabbitohs,TOSS-UP,Sydney Roosters,Sydney Roosters,Sydney Roosters,26,18,Sydney Roosters,1,1,1,1,1.780909090909091,2.058181818181818,0.6093694062437629,0.5361117688846792
+2026,2,Wests Tigers,North Queensland Cowboys,LEAN,Wests Tigers,Wests Tigers,Wests Tigers,44,16,Wests Tigers,1,1,1,1,1.5763636363636364,2.3927272727272726,0.5943122455164997,0.602840128263857
+2026,2,St George Illawarra Dragons,Melbourne Storm,LOCK,Melbourne Storm,Melbourne Storm,Melbourne Storm,20,46,Melbourne Storm,1,1,1,1,3.0063636363636363,1.3918181818181816,0.2649606590984285,0.3164530797850351
+2026,2,Penrith Panthers,Cronulla Sharks,LOCK,Penrith Panthers,Penrith Panthers,Penrith Panthers,26,6,Penrith Panthers,1,1,1,1,1.3572727272727272,3.1545454545454548,0.7083407731908056,0.6991738867620392
+2026,2,Manly Sea Eagles,Newcastle Knights,LEAN,Manly Sea Eagles,Manly Sea Eagles,Manly Sea Eagles,16,36,Newcastle Knights,0,0,0,1,1.5863636363636362,2.3718181818181816,0.6718376440916992,0.5992191088654112
+2026,2,Dolphins,Gold Coast Titans,LOCK,Dolphins,Dolphins,Dolphins,18,14,Dolphins,1,1,1,1,1.3809090909090909,3.039090909090909,0.7477120225572591,0.6875771287535993

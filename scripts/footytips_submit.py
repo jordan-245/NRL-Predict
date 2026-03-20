@@ -331,7 +331,9 @@ def _predict_margin(pred: dict) -> int:
     if spread is not None:
         # Regression model
         margin = 0.54 * spread + 12.3
-        return max(1, round(margin))
+        # Round to nearest even number — odd margins (e.g. 19) imply golden
+        # point which is unlikely; NRL scores are almost always even.
+        return max(2, round(margin / 2) * 2)
 
     # Fallback: optimal constant (median winning margin)
     return 12

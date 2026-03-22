@@ -271,7 +271,8 @@ def _enter_otp(target, page, otp_code: str) -> None:
 
 
 def _extract_token_fallbacks(page, ctx) -> str | None:
-    """Try localStorage, Redux store, and cookies to find a JWT token."""
+    """Try localStorage, Redux store, and cookies to find a JWT token.
+    Only returns tokens that are still valid (≥5 min remaining)."""
     # localStorage
     try:
         token = page.evaluate("""() => {
@@ -292,7 +293,7 @@ def _extract_token_fallbacks(page, ctx) -> str | None:
             }
             return null;
         }""")
-        if token:
+        if token and _is_token_fresh(token):
             print("  ✓ Token extracted from localStorage")
             return token
     except Exception:
@@ -311,7 +312,7 @@ def _extract_token_fallbacks(page, ctx) -> str | None:
             } catch {}
             return null;
         }""")
-        if token:
+        if token and _is_token_fresh(token):
             print("  ✓ Token extracted from Redux store")
             return token
     except Exception:
@@ -320,13 +321,26 @@ def _extract_token_fallbacks(page, ctx) -> str | None:
     # Cookies
     try:
         for c in ctx.cookies():
-            if c["value"].startswith("ey") and c["value"].count(".") == 2:
+            if (c["value"].startswith("ey") and c["value"].count(".") == 2
+                    and _is_token_fresh(c["value"])):
                 print(f"  ✓ Token extracted from cookie: {c['name']}")
                 return c["value"]
     except Exception:
         pass
 
     return None
+
+
+def _is_token_fresh(token: str, min_remaining: int = 300) -> bool:
+    """Check if a JWT token has at least min_remaining seconds of validity."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (4 - len(payload) % 4)
+        jwt_data = json.loads(base64.urlsafe_b64decode(payload))
+        remaining = jwt_data.get("exp", 0) - int(time.time())
+        return remaining >= min_remaining
+    except Exception:
+        return False
 
 
 def refresh_token(fresh: bool = False, otp_code: str = "") -> str | None:
@@ -347,7 +361,11 @@ def refresh_token(fresh: bool = False, otp_code: str = "") -> str | None:
         auth = request.headers.get("authorization", "")
         if (auth.startswith("Bearer ey")
                 and "api.footytips.espn.com.au" in request.url):
-            captured_token = auth[7:]
+            candidate = auth[7:]
+            # Only accept tokens with ≥5 min validity — reject stale
+            # tokens the browser sends before OneID refreshes.
+            if _is_token_fresh(candidate, min_remaining=300):
+                captured_token = candidate
 
     with sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
@@ -372,6 +390,15 @@ def refresh_token(fresh: bool = False, otp_code: str = "") -> str | None:
         # Wait for OneID + any silent refresh
         print("  ⏳ Waiting for OneID...")
         page.wait_for_timeout(10000)
+
+        # If no valid token yet, OneID may still be refreshing —
+        # wait longer with periodic checks (up to 20s more).
+        if not captured_token:
+            print("  ⏳ Waiting for token refresh...")
+            for _ in range(4):
+                page.wait_for_timeout(5000)
+                if captured_token:
+                    break
 
         if captured_token:
             print("  ✓ Token captured (silent refresh from saved session)")
@@ -565,7 +592,10 @@ def main():
         jwt_data = json.loads(base64.urlsafe_b64decode(payload))
         swid = jwt_data.get("sub", "")
         remaining = jwt_data.get("exp", 0) - int(time.time())
-        print(f"  🔑 New token valid for {remaining // 3600}h {(remaining % 3600) // 60}m")
+        if remaining > 0:
+            print(f"  🔑 New token valid for {remaining // 3600}h {(remaining % 3600) // 60}m")
+        else:
+            print(f"  ⚠ Token already expired ({abs(remaining) // 60}m ago) — refresh may have failed")
     except Exception:
         pass
 

@@ -82,7 +82,7 @@ BEST_RF_PARAMS = {
     'n_estimators': 234, 'max_depth': 10, 'min_samples_leaf': 23,
     'max_features': 'sqrt', 'random_state': 42, 'n_jobs': -1,
 }
-SAMPLE_WEIGHT_DECAY = 0.920  # V5-tuned (was 0.907)
+SAMPLE_WEIGHT_DECAY = 0.85  # Backtested: 0.85 → 69.1% vs 0.92 → 68.1% on 1503 games (walk-forward)
 
 # V4 OptBlend weights (optimized across 2018-2025 walk-forward folds)
 BLEND_WEIGHTS = v4.V4_BLEND_WEIGHTS
@@ -542,22 +542,17 @@ def _refresh_odds_in_features(cached_feat: pd.DataFrame,
 
 
 def _get_round_blend_weights(round_number: int) -> tuple[float, float]:
-    """Get model/odds blend weights based on round number.
+    """Get model/odds blend weights.
 
-    Backtested on 1503 games across 2018-2025 walk-forward folds.
-    R1-5 at 15% model → +1.6% accuracy vs fixed 35/65 in early rounds.
-    R6+ at 35% model → standard blend once rolling windows are populated.
-
-    Three-tier schedule (15/25/35) was tested but the intermediate 25%
-    step for R4-5 hurt accuracy by -0.8% — model is already useful by R4
-    so dampening it further than R1-3 was counterproductive.
+    Fixed 35/65 for all rounds.  Dynamic R1-3 dampening was tested but
+    with decay=0.85 the model already handles early rounds well (66% vs
+    64% with old decay).  Adding a 15% dampening on top actually hurt
+    by -4 tips.  The lower decay naturally solves the early-season problem
+    by down-weighting stale historical data.
 
     Returns (model_weight, odds_weight).
     """
-    if round_number <= 3:
-        return 0.15, 0.85  # heavy odds lean — barely any current-season data
-    else:
-        return 0.35, 0.65  # standard blend (backtested: no benefit to intermediate step)
+    return 0.35, 0.65
 
 
 def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFrame:

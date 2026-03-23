@@ -266,6 +266,7 @@ FEATURE_COLS = [
     "is_rainy", "is_windy", "is_cold_actual",
     "ground_not_good", "ground_severity",
     "rain_x_wind", "bad_conditions_score",
+    # V4.2 odds_movement (6) + player_workload (10): ABLATED OUT — hurt WF accuracy
 ]
 
 
@@ -766,6 +767,9 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
         all_matches = compute_weather_features(all_matches)
     except ImportError:
         pass
+
+    # V4.2 odds_movement + player_workload: ABLATED OUT — hurt WF accuracy
+    # Code kept in features/ for future re-eval
 
     # Create target
     all_matches["home_win"] = np.where(

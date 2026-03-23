@@ -95,6 +95,22 @@ except ImportError as _weather_err:
     _WEATHER_AVAILABLE = False
     print(f"[v4] INFO: V4.2 weather module not available ({_weather_err})")
 
+# V4.2: Enhanced odds movement (probability-space features)
+try:
+    from features.odds_movement import compute_odds_movement_features
+    _ODDS_MOVEMENT_AVAILABLE = True
+except ImportError as _odds_err:
+    _ODDS_MOVEMENT_AVAILABLE = False
+    print(f"[v4] INFO: V4.2 odds movement module not available ({_odds_err})")
+
+# V4.2: Player workload + Origin period
+try:
+    from features.player_workload import compute_player_workload_features
+    _WORKLOAD_AVAILABLE = True
+except ImportError as _workload_err:
+    _WORKLOAD_AVAILABLE = False
+    print(f"[v4] INFO: V4.2 player workload module not available ({_workload_err})")
+
 # Walk-forward folds (same as V3)
 FOLDS = v3.FOLDS
 
@@ -1667,6 +1683,14 @@ def build_v4_feature_matrix(df):
         "rain_x_wind", "bad_conditions_score",
     ]
 
+    # NOTE: V4.2 odds_movement (6 features) and player_workload (10 features)
+    # were tested via ablation and REMOVED — both hurt WF-OptBlend accuracy:
+    #   odds_movement: WF-Acc 0.7117→0.7081 (-0.7 tips), WF-LL 0.5733→0.5912
+    #   player_workload: WF-Acc 0.7117→0.7074 (-0.9 tips), WF-LL 0.5733→0.5715
+    #   combined: WF-Acc 0.7117→0.7092 (-0.5 tips), WF-LL 0.5733→0.5773
+    # Both improve in-sample OptBlend but degrade walk-forward = overfitting.
+    # Code kept in features/ for future re-eval with more data or different aggregations.
+
     # NOTE: The following V4.1 groups were tested and REMOVED (hurt accuracy):
     # early_season (-3 tips), roster_turnover (-1), game_context (-1),
     # weather_PROXY (-1), expanded_rolling (-1). Code kept in features/ for future re-eval.
@@ -2406,6 +2430,13 @@ def main():
         matches = compute_weather_features(matches)
     else:
         print("  INFO: Skipping v4.2 weather features (not available)")
+
+    # === STEP 6d-6e: V4.2 odds_movement + player_workload ===
+    # DISABLED — ablation showed both hurt WF accuracy. See feature_cols note.
+    # if _ODDS_MOVEMENT_AVAILABLE:
+    #     matches = compute_odds_movement_features(matches)
+    # if _WORKLOAD_AVAILABLE:
+    #     matches = compute_player_workload_features(matches)
 
     # === STEP 7: Build V4 feature matrix ===
     features, feature_cols = build_v4_feature_matrix(matches)

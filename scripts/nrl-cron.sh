@@ -234,13 +234,34 @@ pregame)
     fi
     ;;
 
+# ── REPREDICT (per game-day, ~90 min before first kickoff) ──────
+# Full prediction refresh with latest weather + odds.
+# Auto-resubmits to ESPN if any tips flip.
+repredict)
+    echo "$(ts) ── Pre-kickoff repredict starting ──" >> "$LOG"
+
+    # Ensure token (only refresh if needed)
+    if ! ensure_token; then
+        echo "$(ts) ── Repredict skipped (no token) ──" >> "$LOG"
+        exit 1
+    fi
+
+    if $PY scripts/pregame_repredict.py >> "$LOG" 2>&1; then
+        echo "$(ts) ── Pre-kickoff repredict complete ──" >> "$LOG"
+    else
+        echo "$(ts) ── Pre-kickoff repredict FAILED ──" >> "$LOG"
+        notify error "repredict" "$LOG"
+    fi
+    ;;
+
 # ── HELP ────────────────────────────────────────────────────────
 help|*)
-    echo "Usage: $0 {refresh|tips|pregame}"
+    echo "Usage: $0 {refresh|tips|pregame|repredict}"
     echo ""
-    echo "  refresh   Monday 8pm:  post-round data refresh"
-    echo "  tips      Tuesday 5pm: predict + submit all tips"
-    echo "  pregame   Thu-Sun:     lineup check → re-tip on swings"
+    echo "  refresh    Monday 8pm:  post-round data refresh"
+    echo "  tips       Tuesday 5pm: predict + submit all tips"
+    echo "  pregame    Thu-Sun:     lineup check → re-tip on swings"
+    echo "  repredict  Game days:   full repredict ~90min before kickoff"
     exit 0
     ;;
 

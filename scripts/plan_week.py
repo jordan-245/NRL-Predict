@@ -211,6 +211,21 @@ def build_schedule(fixtures: list[dict], round_num: int) -> dict:
             f"and first kickoff {first_kickoff.strftime('%A %d %b %H:%M')}"
         )
 
+    # Build per-game-day repredict schedule
+    # Fires ~90 min before each day's first kickoff
+    REPREDICT_LEAD_MINUTES = 90
+    repredict_times = {}
+    for day_key, info in sorted(game_days.items()):
+        first_ko = datetime.strptime(info["first_ko"], "%Y-%m-%d %H:%M")
+        repredict_at = first_ko - timedelta(minutes=REPREDICT_LEAD_MINUTES)
+        repredict_times[day_key] = {
+            "time": repredict_at.strftime("%H:%M"),
+            "hour": repredict_at.hour,
+            "minute": repredict_at.minute,
+            "first_kickoff": info["first_ko"],
+            "day_name": info["day_name"],
+        }
+
     schedule = {
         "round": round_num,
         "generated_at": datetime.now(AEST).strftime("%Y-%m-%d %H:%M AEST"),
@@ -220,6 +235,7 @@ def build_schedule(fixtures: list[dict], round_num: int) -> dict:
         "tip_warning": tip_warning,
         "game_days": game_days,
         "pregame_windows": pregame_windows,
+        "repredict_times": repredict_times,
         "cron_pregame_spec": cron_spec,
         "cron_pregame_days": cron_days_str,
         "cron_pregame_hours": f"{hour_min}-{hour_max}",
@@ -348,11 +364,72 @@ def main():
         json.dump(schedule, f, indent=2)
     print(f"\n  Schedule saved to {SCHEDULE_PATH}")
 
-    # Update crontab
+    # Update crontab — pregame checks + per-day repredict triggers
     if "error" not in schedule and schedule.get("cron_pregame_spec"):
         update_crontab(schedule["cron_pregame_spec"], dry_run=args.dry_run)
+        install_repredict_cron(schedule, dry_run=args.dry_run)
 
     return schedule
+
+
+def install_repredict_cron(schedule: dict, dry_run: bool = False):
+    """Install per-game-day cron entries for pregame_repredict.py.
+
+    Fires ~90 min before each game day's first kickoff.
+    """
+    repredict_times = schedule.get("repredict_times", {})
+    if not repredict_times:
+        return
+
+    try:
+        result = subprocess.run(
+            ["crontab", "-l"], capture_output=True, text=True, check=True,
+        )
+        current = result.stdout
+    except subprocess.CalledProcessError:
+        print("  ⚠ No existing crontab — skipping repredict cron")
+        return
+
+    # Remove old repredict entries
+    lines = current.split("\n")
+    cleaned = [l for l in lines if "nrl-cron.sh repredict" not in l
+               and "Pre-kickoff repredict" not in l]
+
+    # Add new repredict entries (one per game day)
+    new_entries = ["# Pre-kickoff repredict (auto-set by plan_week.py)"]
+    for day_key, info in sorted(repredict_times.items()):
+        dt = datetime.strptime(day_key, "%Y-%m-%d")
+        py_dow = dt.weekday()
+        cron_dow = (py_dow + 1) % 7
+        minute = info["minute"]
+        hour = info["hour"]
+        new_entries.append(
+            f"{minute} {hour} * * {cron_dow} "
+            f"/root/NRL-Predict/scripts/nrl-cron.sh repredict"
+            f"  # {info['day_name']} {day_key} (90min before {info['first_kickoff']})"
+        )
+
+    # Insert before the esac/end marker or at the end
+    cleaned.extend(new_entries)
+    new_crontab = "\n".join(cleaned)
+
+    if dry_run:
+        print(f"\n  Would install {len(repredict_times)} repredict cron entries:")
+        for entry in new_entries[1:]:
+            print(f"    {entry}")
+        return
+
+    proc = subprocess.run(
+        ["crontab", "-"], input=new_crontab, capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        print(f"  ✗ Failed to install repredict cron: {proc.stderr}")
+        return
+
+    print(f"  ✓ Installed {len(repredict_times)} repredict cron entries:")
+    for day_key, info in sorted(repredict_times.items()):
+        print(f"    {info['day_name']:10s} {info['time']} → repredict "
+              f"(first KO {info['first_kickoff']})")
 
 
 if __name__ == "__main__":

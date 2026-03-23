@@ -412,6 +412,8 @@ def install_repredict_cron(schedule: dict, dry_run: bool = False):
     # Insert before the esac/end marker or at the end
     cleaned.extend(new_entries)
     new_crontab = "\n".join(cleaned)
+    if not new_crontab.endswith("\n"):
+        new_crontab += "\n"
 
     if dry_run:
         print(f"\n  Would install {len(repredict_times)} repredict cron entries:")

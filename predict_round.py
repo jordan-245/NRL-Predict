@@ -50,6 +50,7 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 from scipy.optimize import minimize
 from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import log_loss
 import xgboost as xgb
@@ -246,6 +247,44 @@ FEATURE_COLS = [
     # Squad disruption: player changes vs previous game (6)
     "home_spine_changes", "away_spine_changes", "spine_changes_diff",
     "home_squad_turnover", "away_squad_turnover", "squad_turnover_diff",
+    # === V5 NEW FEATURES ===
+    # Early-season dampening (3)
+    "season_data_reliability", "elo_confidence", "form_reliability",
+    # Roster continuity (6)
+    "home_roster_continuity", "away_roster_continuity",
+    "home_spine_continuity", "away_spine_continuity",
+    "roster_continuity_diff", "spine_continuity_diff",
+    # Travel distance (5)
+    "home_travel_km", "away_travel_km", "travel_diff_km",
+    "away_is_interstate", "away_is_overseas",
+    # Opponent-adjusted rolling stats (15: 5 stats × home/away/diff)
+    *[f"home_oa_{s}_5" for s in [
+        "completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles",
+    ]],
+    *[f"away_oa_{s}_5" for s in [
+        "completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles",
+    ]],
+    *[f"oa_diff_{s}_5" for s in [
+        "completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles",
+    ]],
+    # Game context (4)
+    "home_finals_pressure", "away_finals_pressure",
+    "is_elimination", "nothing_to_lose_diff",
+    # Weather proxy (3)
+    "is_wet_season", "is_cold_game", "is_hot_game",
+    # Expanded rolling match stats — 6 new stats × 2 windows × 3 = 36 features
+    *[f"home_ms_{s}_{w}" for w in [3, 5] for s in [
+        "avg_ptb_speed", "forced_dropouts", "kicking_metres",
+        "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
+    ]],
+    *[f"away_ms_{s}_{w}" for w in [3, 5] for s in [
+        "avg_ptb_speed", "forced_dropouts", "kicking_metres",
+        "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
+    ]],
+    *[f"ms_diff_{s}_{w}" for w in [3, 5] for s in [
+        "avg_ptb_speed", "forced_dropouts", "kicking_metres",
+        "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
+    ]],
 ]
 
 
@@ -526,6 +565,24 @@ def _refresh_odds_in_features(cached_feat: pd.DataFrame,
     return feat
 
 
+def _get_round_blend_weights(round_number: int) -> tuple[float, float]:
+    """Get model/odds blend weights based on round number.
+
+    Early rounds have less model reliability due to limited current-season data
+    (small sample for rolling form, Elo not yet calibrated to current rosters).
+    Shift weight towards the market (odds) for early rounds to reduce
+    overconfidence from stale off-season signal.
+
+    Returns (model_weight, odds_weight).
+    """
+    if round_number <= 3:
+        return 0.15, 0.85  # heavy odds lean — barely any current-season data
+    elif round_number <= 5:
+        return 0.25, 0.75  # moderate odds lean — starting to build form signal
+    else:
+        return 0.35, 0.65  # standard blend (current default for rounds 6+)
+
+
 def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFrame:
     """Score upcoming matches using pre-trained model artifacts."""
     models = artifacts["models"]
@@ -569,10 +626,25 @@ def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFr
         odds_probs = np.full(len(upcoming_feat), 0.55)
     odds_probs = np.clip(odds_probs, 1e-7, 1 - 1e-7)
 
-    # Meta-learner blend (if cached) or fallback to linear OptBlend
+    # --- Dynamic round-based blend weights ---
+    # Early rounds have limited current-season signal; lean more on market odds.
+    if "round" in upcoming_feat.columns and len(upcoming_feat) > 0:
+        try:
+            round_number = int(pd.to_numeric(upcoming_feat["round"], errors="coerce").median())
+        except (ValueError, TypeError):
+            round_number = 6
+    else:
+        round_number = 6
+    model_weight, odds_weight = _get_round_blend_weights(round_number)
+    print(f"    Blend weights (round {round_number}): "
+          f"model={model_weight:.0%}, odds={odds_weight:.0%}")
+
+    cat_pred = predictions.get("CAT_top50", np.full(len(upcoming_feat), 0.5))
+
+    # Meta-learner blend (if cached, for rounds 6+) or dynamic linear blend
     meta_lr = artifacts.get("meta_lr")
-    if meta_lr is not None:
-        cat_pred = predictions.get("CAT_top50", np.full(len(upcoming_feat), 0.5))
+    if meta_lr is not None and round_number >= 6:
+        # Regular season: use meta-learner (learned optimal non-linear blend)
         X_meta_pred = pd.DataFrame({
             "model_prob": cat_pred,
             "odds_prob": odds_probs,
@@ -583,11 +655,15 @@ def score_with_models(artifacts: dict, upcoming_feat: pd.DataFrame) -> pd.DataFr
         }).fillna(0.5)
         blended = np.clip(meta_lr.predict_proba(X_meta_pred)[:, 1], 0.01, 0.99)
     else:
-        # Fallback: linear OptBlend
-        blended = np.zeros(len(upcoming_feat), dtype=float)
-        for model_name, weight in BLEND_WEIGHTS.items():
-            blended += weight * predictions[model_name]
-        blended += BLEND_ODDS_WEIGHT * odds_probs
+        # Early rounds (1-5) or no meta-learner: explicit dynamic linear blend.
+        # Dampens model signal when current-season data is thin.
+        blended = model_weight * cat_pred + odds_weight * odds_probs
+        blended = np.clip(blended, 0.01, 0.99)
+
+    # --- Isotonic calibration (fixes overconfidence in 0.7-0.8 range) ---
+    calibrator = artifacts.get("calibrator")
+    if calibrator is not None:
+        blended = calibrator.predict(blended)
         blended = np.clip(blended, 0.01, 0.99)
 
     results = upcoming_feat[["home_team", "away_team", "venue", "date", "round"]].copy()
@@ -693,6 +769,49 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
 
     # Player-level form features (spine form, squad quality, disruption)
     all_matches = v4.compute_player_form_features(all_matches, player_match_stats)
+
+    # V5 new feature modules (gracefully skip if module not yet available)
+    # Early-season dampening (season_data_reliability, elo_confidence, form_reliability)
+    try:
+        from features.early_season import compute_early_season_features
+        all_matches = compute_early_season_features(all_matches)
+    except ImportError:
+        pass
+
+    # Off-season roster turnover (continuity vs prior year's core squad)
+    try:
+        from features.roster_turnover import compute_roster_turnover_features
+        all_matches = compute_roster_turnover_features(all_matches)
+    except ImportError:
+        pass
+
+    # Travel distance (home_travel_km, away_travel_km, away_is_interstate, etc.)
+    try:
+        from features.travel import compute_travel_features
+        all_matches = compute_travel_features(all_matches)
+    except ImportError:
+        pass
+
+    # Opponent-adjusted rolling stats (oa_completion_rate_5, etc.)
+    try:
+        from features.opponent_adjusted import compute_opponent_adjusted_features
+        all_matches = compute_opponent_adjusted_features(all_matches, match_stats)
+    except ImportError:
+        pass
+
+    # Game context (finals_pressure, is_elimination, nothing_to_lose_diff)
+    try:
+        from features.game_context import compute_game_context_features
+        all_matches = compute_game_context_features(all_matches)
+    except ImportError:
+        pass
+
+    # Weather proxy (is_wet_season, is_cold_game, is_hot_game)
+    try:
+        from features.weather import compute_weather_proxy_features
+        all_matches = compute_weather_proxy_features(all_matches)
+    except ImportError:
+        pass
 
     # Create target
     all_matches["home_win"] = np.where(
@@ -932,6 +1051,17 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
     meta_lr = LogisticRegression(C=1.0, max_iter=1000)
     meta_lr.fit(X_meta_train, y_train)
 
+    # --- Isotonic calibration: fit on OOF blended predictions ---
+    # Blends CatBoost OOF + train odds at default weights to get training-time blend.
+    # IsotonicRegression learns a monotone correction that fixes overconfidence
+    # (e.g. predicted 0.75 only wins 67% of the time → calibrated to 0.67).
+    print("    Fitting isotonic calibrator on OOF predictions...")
+    blended_oof = 0.35 * cat_oof + 0.65 * train_odds
+    blended_oof = np.clip(blended_oof, 0.01, 0.99)
+    calibrator = IsotonicRegression(y_min=0.01, y_max=0.99, out_of_bounds="clip")
+    calibrator.fit(blended_oof, y_train)
+    print(f"    Calibrator fitted on {len(y_train)} training samples")
+
     # Apply meta-learner to prediction set
     cat_pred = predictions["CAT_top50"]
     X_meta_pred = pd.DataFrame({
@@ -979,6 +1109,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
         "feature_cols": feature_cols,
         "medians": medians,
         "meta_lr": meta_lr,
+        "calibrator": calibrator,
     }
 
     return results, artifacts

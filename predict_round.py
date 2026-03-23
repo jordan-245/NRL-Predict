@@ -249,7 +249,8 @@ FEATURE_COLS = [
     "home_squad_turnover", "away_squad_turnover", "squad_turnover_diff",
     # === V5 NEW FEATURES ===
     # Early-season dampening (3)
-    "season_data_reliability", "elo_confidence", "form_reliability",
+    "season_data_reliability", "elo_confidence",
+    "home_form_reliability", "away_form_reliability",
     # Roster continuity (6)
     "home_roster_continuity", "away_roster_continuity",
     "home_spine_continuity", "away_spine_continuity",

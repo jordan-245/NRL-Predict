@@ -87,6 +87,7 @@ VENUE_COORDS: dict[str, tuple[float, float]] = {
     "Pepper Stadium":                        (-33.7498, 150.6934),
     "Centrebet Stadium":                     (-33.7498, 150.6934),
     "Carpenters Stadium":                    (-33.7498, 150.6934),
+    "Sportingbet Stadium":                   (-33.7498, 150.6934),
 
     # ------------------------------------------------------------------ #
     # SYDNEY NORTH – Brookvale / Manly                                    #
@@ -99,11 +100,22 @@ VENUE_COORDS: dict[str, tuple[float, float]] = {
     "Manly Warringah Football Stadium":      (-33.7701, 151.2862),
 
     # ------------------------------------------------------------------ #
+    # SYDNEY – Sydney Cricket Ground (SCG)                                #
+    # ------------------------------------------------------------------ #
+    "Sydney Cricket Ground":                 (-33.8912, 151.2249),
+    "SCG":                                   (-33.8912, 151.2249),
+
+    # ------------------------------------------------------------------ #
     # SYDNEY SOUTH – Cronulla (Shark Park / PointsBet Stadium)            #
     # ------------------------------------------------------------------ #
     "Shark Park":                            (-34.0469, 151.1443),
     "PointsBet Stadium":                     (-34.0469, 151.1443),
     "Pointsbet Stadium":                     (-34.0469, 151.1443),
+    "Remondis Stadium":                      (-34.0469, 151.1443),
+    "Sharks Stadium":                        (-34.0469, 151.1443),
+    "Shark Stadium":                         (-34.0469, 151.1443),
+    "Toyota Stadium":                        (-34.0469, 151.1443),
+    "Ocean Protect Stadium":                 (-34.0469, 151.1443),
 
     # ------------------------------------------------------------------ #
     # SYDNEY INNER – Leichhardt Oval                                      #
@@ -199,6 +211,7 @@ VENUE_COORDS: dict[str, tuple[float, float]] = {
     "Skilled Park":                          (-28.0759, 153.3744),
     "Metricon Stadium":                      (-28.0759, 153.3744),
     "CBus Super Stadium":                    (-28.0759, 153.3744),
+    "Virgin Australia Stadium":              (-28.0759, 153.3744),
 
     # ------------------------------------------------------------------ #
     # SUNSHINE COAST                                                      #
@@ -237,6 +250,7 @@ VENUE_COORDS: dict[str, tuple[float, float]] = {
     # ROCKHAMPTON                                                         #
     # ------------------------------------------------------------------ #
     "Central Queensland Stadium":            (-23.3809, 150.5071),
+    "Browne Park":                           (-23.3713, 150.5035),   # Rockhampton
 
     # ------------------------------------------------------------------ #
     # MELBOURNE                                                           #
@@ -281,9 +295,18 @@ VENUE_COORDS: dict[str, tuple[float, float]] = {
     "Go Media Stadium":                      (-37.0050, 174.8614),
     "Mt Smart Stadium":                      (-37.0050, 174.8614),
     "Mount Smart Stadium":                   (-37.0050, 174.8614),
+    "One New Zealand Stadium":               (-37.0050, 174.8614),
+    "Shaun Johnson Stadium":                 (-37.0050, 174.8614),
+    "Daniel Anderson Stadium":               (-37.0050, 174.8614),
     "Waikato Stadium":                       (-37.7870, 175.2793),
     "FMG Stadium Waikato":                   (-37.7870, 175.2793),
     "Forsyth Barr Stadium":                  (-45.8788, 170.5028),
+    "Eden Park":                             (-36.8748, 174.7448),
+    "Westpac Stadium":                       (-41.2730, 174.7857),   # Wellington
+    "Sky Stadium":                           (-41.2730, 174.7857),   # Wellington
+    "McLean Park":                           (-39.4951, 176.9034),   # Napier
+    "Yarrow Stadium":                        (-39.0613, 174.0791),   # New Plymouth
+    "Rugby League Park":                     (-36.8900, 174.7800),   # Auckland
 
     # ------------------------------------------------------------------ #
     # UNITED KINGDOM (overseas NRL fixtures)                              #
@@ -307,10 +330,21 @@ VENUE_COORDS: dict[str, tuple[float, float]] = {
     "Cessnock Sportsground":                 (-32.8328, 151.3570),
     "Carrington Park":                       (-33.7208, 149.5936),   # Bathurst
     "Glen Willow Regional Sports Complex":   (-32.2355, 148.5977),   # Mudgee
+    "Glen Willow Oval":                      (-32.2355, 148.5977),   # Mudgee
+    "polytec Stadium":                       (-32.2355, 148.5977),   # Mudgee
     "Scully Park":                           (-30.8763, 150.9293),   # Tamworth
     "Salter Oval":                           (-25.5010, 151.9481),   # Bundaberg
     "C.ex Coffs International Stadium":      (-30.2980, 153.1185),   # Coffs Harbour
+    "BCU International Stadium":             (-30.2980, 153.1185),   # Coffs Harbour
     "Lavington Sports Ground":               (-36.0736, 146.9489),   # Albury
+    "McDonalds Park":                        (-35.1063, 147.3667),   # Wagga Wagga
+    "Marley Brown Oval":                     (-23.8409, 151.2607),   # Gladstone
+    "Apollo Projects Stadium":               (-33.8682, 151.1550),   # Leichhardt rename
+
+    # ------------------------------------------------------------------ #
+    # USA (NRL Las Vegas)                                                 #
+    # ------------------------------------------------------------------ #
+    "Allegiant Stadium":                     (36.0908, -115.1835),   # Las Vegas
 }
 
 

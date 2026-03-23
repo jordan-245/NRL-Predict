@@ -78,7 +78,7 @@ from pipelines import v3
 # Tested 7 groups on 1503 games (2018-2025 walk-forward). Winners:
 #   travel: +1 tip          opponent_adjusted: +2 tips
 # Removed (hurt accuracy): early_season(-3), roster_turnover(-1),
-#   game_context(-1), weather(-1), expanded_rolling(-1)
+#   game_context(-1), weather_PROXY(-1), expanded_rolling(-1)
 try:
     from features.travel import compute_travel_features
     from features.opponent_adjusted import compute_opponent_adjusted_features
@@ -86,6 +86,14 @@ try:
 except ImportError as _import_err:
     _NEW_FEATURES_AVAILABLE = False
     print(f"[v4] INFO: V4.1 feature modules not available ({_import_err})")
+
+# V4.2: Real weather + ground conditions (replaces proxy that scored -1)
+try:
+    from features.weather import compute_weather_features
+    _WEATHER_AVAILABLE = True
+except ImportError as _weather_err:
+    _WEATHER_AVAILABLE = False
+    print(f"[v4] INFO: V4.2 weather module not available ({_weather_err})")
 
 # Walk-forward folds (same as V3)
 FOLDS = v3.FOLDS
@@ -1650,9 +1658,18 @@ def build_v4_feature_matrix(df):
     for stat in ["completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles"]:
         feature_cols += [f"home_oa_{stat}_5", f"away_oa_{stat}_5", f"oa_diff_{stat}_5"]
 
+    # V4.2 Real weather + ground conditions (10 features)
+    # Replaces V4.1 proxy (month/lat → -1 tip) with Open-Meteo actual + NRL.com ground
+    feature_cols += [
+        "temperature_c", "precipitation_mm", "wind_speed_kmh",
+        "is_rainy", "is_windy", "is_cold_actual",
+        "ground_not_good", "ground_severity",
+        "rain_x_wind", "bad_conditions_score",
+    ]
+
     # NOTE: The following V4.1 groups were tested and REMOVED (hurt accuracy):
     # early_season (-3 tips), roster_turnover (-1), game_context (-1),
-    # weather (-1), expanded_rolling (-1). Code kept in features/ for future re-eval.
+    # weather_PROXY (-1), expanded_rolling (-1). Code kept in features/ for future re-eval.
 
     # Filter to existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]
@@ -2383,6 +2400,12 @@ def main():
         matches = compute_opponent_adjusted_features(matches, _match_stats)
     else:
         print("  INFO: Skipping v4.1 feature modules (not available)")
+
+    # === STEP 6c: V4.2 real weather + ground conditions ===
+    if _WEATHER_AVAILABLE:
+        matches = compute_weather_features(matches)
+    else:
+        print("  INFO: Skipping v4.2 weather features (not available)")
 
     # === STEP 7: Build V4 feature matrix ===
     features, feature_cols = build_v4_feature_matrix(matches)

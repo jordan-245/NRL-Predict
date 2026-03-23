@@ -377,6 +377,18 @@ def step5_rebuild_player_impact():
         print(f"    ERROR: {e}")
 
 
+def step5b_update_weather():
+    """Update Open-Meteo weather data for any new matches."""
+    print(f"\n  STEP 5b: Updating weather data (Open-Meteo)...")
+    try:
+        from scraping.open_meteo import backfill_weather
+        backfill_weather(delay=0.1)
+    except ImportError as e:
+        print(f"    SKIPPED: open_meteo module not available ({e})")
+    except Exception as e:
+        print(f"    ERROR updating weather: {e}")
+
+
 def step6_invalidate_cache(year: int):
     """Remove model caches so next prediction retrains with fresh data."""
     print(f"\n  STEP 6: Invalidating model cache...")
@@ -478,6 +490,7 @@ def main():
 
             step4_update_player_appearances(year, round_num)
             step5_rebuild_player_impact()
+            step5b_update_weather()
             step6_invalidate_cache(year)
 
         if args.record_tips:

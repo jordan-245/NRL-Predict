@@ -1,185 +1,204 @@
 """
-Weather Proxy Features
-=======================
-Estimates weather conditions from date + venue latitude. No external API needed.
+Weather & Ground Condition Features (V4.2)
+==========================================
+Replaces V4.1 proxy features (month/lat) with:
+  1. Real weather data from Open-Meteo (temperature, precipitation, wind)
+  2. NRL.com ground conditions (Good/Fair/Slippery/Wet/Heavy/Muddy)
 
-Features produced:
-  - is_wet_season  : month in [1,2,3,11,12] AND venue lat < -30 (Sydney/Melb storms)
-  - is_cold_game   : month in [6,7,8]       AND venue lat < -33 (cold southern venues)
-  - is_hot_game    : month in [12,1,2]      AND venue lat > -25 (tropical QLD/NZ)
+Features produced (10 total):
+  From Open-Meteo:
+    - temperature_c        : average temp on game day (°C)
+    - precipitation_mm     : total precipitation on game day (mm)
+    - wind_speed_kmh       : max wind speed on game day (km/h)
+    - is_rainy             : precipitation > 1.0 mm
+    - is_windy             : wind speed > 30 km/h
+    - is_cold_actual       : temperature < 12°C
 
-Requires venue GPS coordinates from config.venues (VENUE_COORDS dict).
-Falls back gracefully if config.venues is unavailable.
+  From NRL.com ground conditions:
+    - ground_not_good      : ground_conditions != 'Good' (binary)
+    - ground_severity      : ordinal 0-4 (Good=0, Fair=1, Slippery=2, Wet=3, Heavy/Muddy=4)
+
+  Interactions:
+    - rain_x_wind          : precipitation_mm * wind_speed_kmh (compound bad weather)
+    - bad_conditions_score : ground_severity + is_rainy + is_windy (composite 0-6)
+
+Falls back to proxy features when real data is unavailable.
 """
-
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
-# ── Try to import venue coordinates from Builder 1's module ─────────────────
-try:
-    from config.venues import VENUE_COORDS  # type: ignore[import]
-    _HAVE_COORDS = True
-except ImportError:
-    # Builder 1's config/venues.py not yet available — use inline fallback
-    _HAVE_COORDS = False
-    VENUE_COORDS: dict[str, tuple[float, float]] = {}
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 
-# Inline fallback coordinates for major venues (lat, lon)
-# Used only when config.venues is unavailable
-_FALLBACK_COORDS: dict[str, tuple[float, float]] = {
-    # Sydney venues  (lat ≈ -33.9)
-    "allianz stadium":              (-33.893, 151.225),
-    "sydney football stadium":      (-33.893, 151.225),
-    "accor stadium":                (-33.847, 151.063),
-    "stadium australia":            (-33.847, 151.063),
-    "olympic park":                 (-33.847, 151.063),
-    "leichhardt oval":              (-33.876, 151.151),
-    "commbank stadium":             (-33.814, 151.003),
-    "parramatta stadium":           (-33.814, 151.003),
-    "bankwest stadium":             (-33.814, 151.003),
-    "campbelltown stadium":         (-34.066, 150.814),
-    "win stadium":                  (-34.424, 150.903),
-    "belmore sports ground":        (-33.916, 151.091),
-    "4 pines park":                 (-33.796, 151.282),
-    "brookvale oval":               (-33.796, 151.282),
-    "manly":                        (-33.796, 151.282),
-    "netstrata jubilee stadium":    (-33.970, 151.108),
-    "kogarah":                      (-33.970, 151.108),
-    "bitv stadium":                 (-33.849, 151.031),
-    # Brisbane venues (lat ≈ -27.5)
-    "suncorp stadium":              (-27.465, 153.009),
-    "lang park":                    (-27.465, 153.009),
-    "dolphins/redcliffe":           (-27.236, 153.099),
-    "moreton daily stadium":        (-27.236, 153.099),
-    # Gold Coast (lat ≈ -28.0)
-    "cbus super stadium":           (-27.975, 153.399),
-    "robina":                       (-27.975, 153.399),
-    # Newcastle (lat ≈ -32.9)
-    "mcdonald jones stadium":       (-32.925, 151.729),
-    "hunter stadium":               (-32.925, 151.729),
-    "newcastle":                    (-32.925, 151.729),
-    # Townsville (lat ≈ -19.3)
-    "qld country bank stadium":     (-19.317, 146.746),
-    "1300smiles stadium":           (-19.317, 146.746),
-    "townsville":                   (-19.317, 146.746),
-    # Canberra (lat ≈ -35.3)
-    "gjamison stadium":             (-35.301, 149.126),
-    "gib power stadium":            (-35.301, 149.126),
-    "canberra stadium":             (-35.301, 149.126),
-    "go-media stadium":             (-35.301, 149.126),
-    # Melbourne (lat ≈ -37.8)
-    "marvel stadium":               (-37.816, 144.947),
-    "etihad stadium":               (-37.816, 144.947),
-    "aami park":                    (-37.815, 144.984),
-    "melbourne":                    (-37.815, 144.984),
-    # Auckland / New Zealand (lat ≈ -36.9)
-    "go media stadium":             (-36.920, 174.737),
-    "mt smart stadium":             (-36.920, 174.737),
-    "eden park":                    (-36.876, 174.743),
-    "auckland":                     (-36.920, 174.737),
-    # Wollongong (lat ≈ -34.4)
-    "win stadium wollongong":       (-34.424, 150.903),
-    "wollongong":                   (-34.424, 150.903),
-    # Cairns / Darwin (tropical)
-    "cazalys stadium":              (-16.920, 145.766),
-    "darwin":                       (-12.462, 130.841),
-    # Port Moresby / PNG
-    "oil search stadium":           (-9.443, 147.180),
-    "port moresby":                 (-9.443, 147.180),
+# Ground condition ordinal mapping
+GROUND_SEVERITY = {
+    "Good": 0,
+    "": 0,        # blank = assume good
+    "Fine": 0,    # sometimes weather field leaks here
+    "Fair": 1,
+    "Slippery": 2,
+    "Wet": 3,
+    "Heavy": 4,
+    "Muddy": 4,
 }
 
 
-def _get_venue_lat(venue_name: str) -> float | None:
-    """Return latitude for a venue name, trying VENUE_COORDS then fallback."""
-    if not isinstance(venue_name, str):
+def _load_weather_actual() -> pd.DataFrame | None:
+    """Load Open-Meteo weather data if available."""
+    path = PROCESSED_DIR / "weather_actual.parquet"
+    if not path.exists():
         return None
-
-    vn = venue_name.strip()
-
-    # 1. Try exact match in VENUE_COORDS (Builder 1's module)
-    if _HAVE_COORDS and vn in VENUE_COORDS:
-        return VENUE_COORDS[vn][0]
-
-    # 2. Try case-insensitive substring match in VENUE_COORDS
-    if _HAVE_COORDS:
-        vn_lower = vn.lower()
-        for k, v in VENUE_COORDS.items():
-            if k.lower() in vn_lower or vn_lower in k.lower():
-                return v[0]
-
-    # 3. Fallback dict (case-insensitive substring)
-    vn_lower = vn.lower()
-    for k, coords in _FALLBACK_COORDS.items():
-        if k in vn_lower or vn_lower in k:
-            return coords[0]
-
-    return None
+    df = pd.read_parquet(path)
+    # Ensure join keys are correct types
+    df["year"] = df["year"].astype(int)
+    df["round"] = df["round"].astype(str).str.strip()
+    df["home_team"] = df["home_team"].astype(str).str.strip()
+    df["away_team"] = df["away_team"].astype(str).str.strip()
+    return df
 
 
-def compute_weather_proxy_features(matches: pd.DataFrame) -> pd.DataFrame:
-    """Compute weather proxy features from date and venue location.
+def _load_ground_conditions() -> pd.DataFrame | None:
+    """Load NRL.com ground conditions from match_officials.parquet."""
+    path = PROCESSED_DIR / "match_officials.parquet"
+    if not path.exists():
+        return None
+    df = pd.read_parquet(path)
+    df["year"] = df["year"].astype(int)
+    df["round"] = df["round"].astype(str).str.strip()
+    df["home_team"] = df["home_team"].astype(str).str.strip()
+    df["away_team"] = df["away_team"].astype(str).str.strip()
+    return df[["year", "round", "home_team", "away_team", "ground_conditions", "weather"]]
+
+
+def compute_weather_features(matches: pd.DataFrame) -> pd.DataFrame:
+    """Compute real weather + ground condition features.
 
     Parameters
     ----------
     matches : pd.DataFrame
-        Main feature DataFrame.  Must contain:
-          - month  : int (1-12), added by v3 engineering features
-          - venue  : str, venue name
+        Main feature DataFrame. Must contain: year, round, home_team, away_team.
 
     Returns
     -------
     pd.DataFrame
-        Input DataFrame with 3 new boolean columns appended.
+        Input DataFrame with 10 new weather/ground columns appended.
     """
     print("\n" + "=" * 80)
-    print("  V4: COMPUTING WEATHER PROXY FEATURES")
+    print("  V4.2: COMPUTING REAL WEATHER + GROUND CONDITION FEATURES")
     print("=" * 80)
 
     df = matches.copy()
+    n = len(df)
 
-    # ── Month ─────────────────────────────────────────────────────────────────
-    if "month" in df.columns:
-        month = pd.to_numeric(df["month"], errors="coerce")
-    elif "date" in df.columns:
-        month = pd.to_datetime(df["date"], errors="coerce").dt.month
+    # Ensure join keys exist and are typed correctly
+    df["year"] = df["year"].astype(int)
+    df["round"] = df["round"].astype(str).str.strip()
+    df["home_team"] = df["home_team"].astype(str).str.strip()
+    df["away_team"] = df["away_team"].astype(str).str.strip()
+
+    join_keys = ["year", "round", "home_team", "away_team"]
+
+    # ── 1. Open-Meteo actual weather ──────────────────────────────────────
+    weather_df = _load_weather_actual()
+    if weather_df is not None:
+        # Merge on match keys
+        weather_cols = ["temperature_c", "precipitation_mm", "wind_speed_kmh", "weather_code"]
+        merge_cols = join_keys + weather_cols
+        weather_df = weather_df[merge_cols].drop_duplicates(subset=join_keys)
+
+        df = df.merge(weather_df, on=join_keys, how="left")
+        weather_coverage = df["temperature_c"].notna().mean() * 100
+        print(f"  Open-Meteo coverage: {weather_coverage:.1f}% ({df['temperature_c'].notna().sum()}/{n})")
     else:
-        month = pd.Series(np.nan, index=df.index)
+        print("  WARNING: weather_actual.parquet not found — weather features will be NaN")
+        for col in ["temperature_c", "precipitation_mm", "wind_speed_kmh", "weather_code"]:
+            df[col] = np.nan
 
-    # ── Venue latitude ────────────────────────────────────────────────────────
-    venue_col = df.get("venue", pd.Series("", index=df.index))
-    lat_series = venue_col.map(_get_venue_lat)  # float or None
+    # ── 2. NRL.com ground conditions ──────────────────────────────────────
+    ground_df = _load_ground_conditions()
+    if ground_df is not None:
+        ground_merge = ground_df[join_keys + ["ground_conditions"]].drop_duplicates(subset=join_keys)
+        df = df.merge(ground_merge, on=join_keys, how="left", suffixes=("", "_gc"))
+        gc_coverage = df["ground_conditions"].notna().mean() * 100
+        print(f"  Ground conditions coverage: {gc_coverage:.1f}% ({df['ground_conditions'].notna().sum()}/{n})")
+    else:
+        print("  WARNING: match_officials.parquet not found — ground features will be NaN")
+        df["ground_conditions"] = np.nan
 
-    # ── is_wet_season ─────────────────────────────────────────────────────────
-    # Summer storms: Sydney / Melbourne (lat < -30), Nov–Mar
-    wet_months = month.isin([1, 2, 3, 11, 12])
-    southern_venue = lat_series.lt(-30)
-    df["is_wet_season"] = (wet_months & southern_venue).astype(float)
-    df.loc[lat_series.isna(), "is_wet_season"] = np.nan
+    # ── 3. Derive features from raw data ──────────────────────────────────
 
-    # ── is_cold_game ──────────────────────────────────────────────────────────
-    # Mid-winter: very southern venues (lat < -33), Jun–Aug
-    cold_months = month.isin([6, 7, 8])
-    very_southern = lat_series.lt(-33)
-    df["is_cold_game"] = (cold_months & very_southern).astype(float)
-    df.loc[lat_series.isna(), "is_cold_game"] = np.nan
+    # Binary weather flags
+    df["is_rainy"] = (df["precipitation_mm"] > 1.0).astype(float)
+    df.loc[df["precipitation_mm"].isna(), "is_rainy"] = np.nan
 
-    # ── is_hot_game ───────────────────────────────────────────────────────────
-    # Hot/humid conditions: QLD venues (lat > -28), Oct–Mar (includes season start)
-    hot_months = month.isin([10, 11, 12, 1, 2, 3])
-    tropical_venue = lat_series.gt(-28)
-    df["is_hot_game"] = (hot_months & tropical_venue).astype(float)
-    df.loc[lat_series.isna(), "is_hot_game"] = np.nan
+    df["is_windy"] = (df["wind_speed_kmh"] > 30).astype(float)
+    df.loc[df["wind_speed_kmh"].isna(), "is_windy"] = np.nan
 
-    n_new = 3
-    known_lat = lat_series.notna().sum()
-    total = len(df)
-    coverage = lat_series.notna().mean() * 100
-    print(f"  Added {n_new} weather proxy features")
-    print(f"  Venue lat resolved for {known_lat}/{total} rows ({coverage:.0f}% coverage)")
-    print(f"  Wet-season games: {df['is_wet_season'].sum():.0f}, "
-          f"Cold: {df['is_cold_game'].sum():.0f}, "
-          f"Hot: {df['is_hot_game'].sum():.0f}")
+    df["is_cold_actual"] = (df["temperature_c"] < 12).astype(float)
+    df.loc[df["temperature_c"].isna(), "is_cold_actual"] = np.nan
+
+    # Ground condition features
+    gc = df["ground_conditions"].fillna("").astype(str).str.strip()
+    df["ground_not_good"] = (gc.isin(["Fair", "Slippery", "Wet", "Heavy", "Muddy"])).astype(float)
+    df.loc[df["ground_conditions"].isna(), "ground_not_good"] = np.nan
+
+    df["ground_severity"] = gc.map(GROUND_SEVERITY).astype(float)
+    # Unknown values → NaN
+    df.loc[~gc.isin(GROUND_SEVERITY.keys()) & (gc != ""), "ground_severity"] = np.nan
+
+    # Interaction: rain × wind compound
+    df["rain_x_wind"] = df["precipitation_mm"] * df["wind_speed_kmh"]
+
+    # Composite bad conditions score (0-6 scale)
+    df["bad_conditions_score"] = (
+        df["ground_severity"].fillna(0) +
+        df["is_rainy"].fillna(0) +
+        df["is_windy"].fillna(0)
+    )
+    # NaN if ALL components are NaN
+    all_nan = (df["ground_severity"].isna() & df["is_rainy"].isna() & df["is_windy"].isna())
+    df.loc[all_nan, "bad_conditions_score"] = np.nan
+
+    # Drop intermediate columns (keep only feature columns)
+    drop_cols = ["weather_code", "ground_conditions"]
+    # Only drop if they exist and aren't from original dataframe
+    for c in drop_cols:
+        if c in df.columns and c not in matches.columns:
+            df = df.drop(columns=[c])
+    # Also drop any merge suffixed columns
+    for c in df.columns:
+        if c.endswith("_gc"):
+            df = df.drop(columns=[c])
+
+    # ── Summary ───────────────────────────────────────────────────────────
+    new_features = [
+        "temperature_c", "precipitation_mm", "wind_speed_kmh",
+        "is_rainy", "is_windy", "is_cold_actual",
+        "ground_not_good", "ground_severity",
+        "rain_x_wind", "bad_conditions_score",
+    ]
+    n_new = sum(1 for f in new_features if f in df.columns)
+
+    print(f"\n  Added {n_new} weather/ground features:")
+    for f in new_features:
+        if f in df.columns:
+            valid = df[f].notna().sum()
+            if df[f].dtype == float and df[f].dropna().isin([0, 1]).all():
+                # Binary feature
+                pct_true = df[f].sum() / max(valid, 1) * 100
+                print(f"    {f:25s}: {valid:4d}/{n} valid, {pct_true:.1f}% true")
+            else:
+                mean = df[f].mean()
+                print(f"    {f:25s}: {valid:4d}/{n} valid, mean={mean:.2f}")
 
     return df
+
+
+# ── Legacy API (backward compat) ─────────────────────────────────────────
+
+def compute_weather_proxy_features(matches: pd.DataFrame) -> pd.DataFrame:
+    """Legacy wrapper — redirects to compute_weather_features."""
+    return compute_weather_features(matches)

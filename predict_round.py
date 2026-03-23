@@ -261,6 +261,11 @@ FEATURE_COLS = [
     *[f"oa_diff_{s}_5" for s in [
         "completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles",
     ]],
+    # === V4.2 WEATHER + GROUND CONDITIONS (10) ===
+    "temperature_c", "precipitation_mm", "wind_speed_kmh",
+    "is_rainy", "is_windy", "is_cold_actual",
+    "ground_not_good", "ground_severity",
+    "rain_x_wind", "bad_conditions_score",
 ]
 
 
@@ -752,6 +757,13 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     try:
         from features.opponent_adjusted import compute_opponent_adjusted_features
         all_matches = compute_opponent_adjusted_features(all_matches, match_stats)
+    except ImportError:
+        pass
+
+    # V4.2 weather + ground conditions
+    try:
+        from features.weather import compute_weather_features
+        all_matches = compute_weather_features(all_matches)
     except ImportError:
         pass
 

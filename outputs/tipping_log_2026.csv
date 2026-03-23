@@ -7,3 +7,11 @@ season,round,home_team,away_team,category,tip,model_pick,odds_fav,home_score,awa
 2026,2,Penrith Panthers,Cronulla Sharks,LOCK,Penrith Panthers,Penrith Panthers,Penrith Panthers,26,6,Penrith Panthers,1,1,1,1,1.3572727272727272,3.1545454545454548,0.7083407731908056,0.6991738867620392
 2026,2,Manly Sea Eagles,Newcastle Knights,LEAN,Manly Sea Eagles,Manly Sea Eagles,Manly Sea Eagles,16,36,Newcastle Knights,0,0,0,1,1.5863636363636362,2.3718181818181816,0.6718376440916992,0.5992191088654112
 2026,2,Dolphins,Gold Coast Titans,LOCK,Dolphins,Dolphins,Dolphins,18,14,Dolphins,1,1,1,1,1.3809090909090909,3.039090909090909,0.7477120225572591,0.6875771287535993
+2026,3,Canberra Raiders,Canterbury Bulldogs,TOSS-UP,Canterbury Bulldogs,Canterbury Bulldogs,Canberra Raiders,10,14,Canterbury Bulldogs,1,1,0,0,1.839090909090909,1.9618181818181817,0.4551455211444901,0.5161444630471179
+2026,3,Sydney Roosters,Penrith Panthers,LEAN,Penrith Panthers,Penrith Panthers,Penrith Panthers,4,40,Penrith Panthers,1,1,1,1,2.4472727272727277,1.56,0.3692915759049349,0.3892921960072595
+2026,3,Melbourne Storm,Brisbane Broncos,LEAN,Melbourne Storm,Melbourne Storm,Melbourne Storm,14,18,Brisbane Broncos,0,0,0,1,1.460909090909091,2.6818181818181817,0.6415733799603108,0.6473557164801405
+2026,3,Newcastle Knights,New Zealand Warriors,LEAN,New Zealand Warriors,New Zealand Warriors,New Zealand Warriors,12,38,New Zealand Warriors,1,1,1,1,2.480909090909091,1.54,0.3591053073742896,0.3829979651820032
+2026,3,Cronulla Sharks,Dolphins,LOCK,Cronulla Sharks,Cronulla Sharks,Cronulla Sharks,10,38,Dolphins,0,0,0,1,1.449090909090909,2.7454545454545456,0.7223129336136481,0.6545296922410057
+2026,3,South Sydney Rabbitohs,Wests Tigers,LEAN,South Sydney Rabbitohs,South Sydney Rabbitohs,South Sydney Rabbitohs,20,16,South Sydney Rabbitohs,1,1,1,1,1.5590909090909093,2.416363636363636,0.674193196531631,0.6078207180425337
+2026,3,Parramatta Eels,St George Illawarra Dragons,LEAN,Parramatta Eels,Parramatta Eels,Parramatta Eels,30,20,Parramatta Eels,1,1,1,1,1.4736363636363636,2.688181818181818,0.732158632086193,0.6459152468326779
+2026,3,North Queensland Cowboys,Gold Coast Titans,LEAN,North Queensland Cowboys,North Queensland Cowboys,North Queensland Cowboys,30,16,North Queensland Cowboys,1,1,1,1,1.5772727272727274,2.380909090909091,0.6753645210509659,0.6015158474965548

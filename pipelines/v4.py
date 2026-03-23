@@ -114,38 +114,40 @@ except ImportError as _workload_err:
 # Walk-forward folds (same as V3)
 FOLDS = v3.FOLDS
 
-# V4-tuned hyperparameters (Optuna, 100 trials each on V4 194-feature set)
+# V4.2 Optuna tuned (60 trials on 204-feature set, 2026-03-23)
 BEST_XGB_PARAMS = {
-    'n_estimators': 348, 'max_depth': 5,
-    'learning_rate': 0.007883713651576849,
-    'subsample': 0.5787119138697776,
-    'colsample_bytree': 0.23243000723775306,
-    'reg_alpha': 0.006309024583131649,
-    'reg_lambda': 0.23908624386240268,
-    'min_child_weight': 12, 'gamma': 3.112173145335378,
+    'n_estimators': 595, 'max_depth': 6,
+    'learning_rate': 0.015813065517334902,
+    'subsample': 0.8410964798049689,
+    'colsample_bytree': 0.3948403517801988,
+    'reg_alpha': 0.06680850775367157,
+    'reg_lambda': 3.2832397444903774,
+    'min_child_weight': 5, 'gamma': 2.326213306203162,
     'eval_metric': 'logloss', 'verbosity': 0, 'random_state': 42,
 }
 
 BEST_LGB_PARAMS = {
-    'n_estimators': 450, 'num_leaves': 44, 'max_depth': 2,
-    'learning_rate': 0.011381907551166253,
-    'subsample': 0.668591524465417,
-    'colsample_bytree': 0.22840930494641537,
-    'reg_alpha': 0.002996001252884443,
-    'reg_lambda': 5.774885014717924e-07,
-    'min_child_samples': 9,
+    'n_estimators': 558, 'num_leaves': 18, 'max_depth': 7,
+    'learning_rate': 0.010149793348234664,
+    'subsample': 0.7875046793546013,
+    'colsample_bytree': 0.4996962082378136,
+    'reg_alpha': 0.7004929135933794,
+    'reg_lambda': 0.3645369710192496,
+    'min_child_samples': 15,
     'random_state': 42, 'verbose': -1,
 }
+# V4.2 Optuna tuned (60 trials on 204-feature set, 2026-03-23)
 
 BEST_CAT_PARAMS = {
-    'iterations': 472, 'depth': 6,
-    'learning_rate': 0.010714785506587051,
-    'l2_leaf_reg': 1.4525445616350277,
-    'subsample': 0.6817498049854462,
-    'colsample_bylevel': 0.658256433246225,
-    'min_data_in_leaf': 19,
+    'iterations': 560, 'depth': 5,
+    'learning_rate': 0.03353892960805707,
+    'l2_leaf_reg': 4.710001043065232,
+    'subsample': 0.5542703996661165,
+    'colsample_bylevel': 0.44886932588914863,
+    'min_data_in_leaf': 47,
     'random_seed': 42, 'verbose': 0, 'allow_writing_files': False,
 }
+# V4.2 Optuna tuned (60 trials on 204-feature set, 2026-03-23)
 
 BEST_RF_PARAMS = {
     'n_estimators': 859, 'max_depth': 6,
@@ -216,6 +218,11 @@ def compute_v4_odds_features(matches):
         close_sp = pd.to_numeric(df.get("line_home_close", df["line_home_open"]), errors="coerce")
         df["spread_movement"] = close_sp - open_sp
         df["spread_movement_abs"] = df["spread_movement"].abs()
+        # NaN out movement for estimated close values (we don't know actual movement)
+        if "_close_estimated" in df.columns:
+            est = df["_close_estimated"].fillna(False)
+            df.loc[est, "spread_movement"] = np.nan
+            df.loc[est, "spread_movement_abs"] = np.nan
 
     # --- Spread-odds agreement (do spread and H2H tell the same story?) ---
     if "odds_home_prob" in df.columns and "spread_home_open" in df.columns:
@@ -255,6 +262,13 @@ def compute_v4_odds_features(matches):
             pd.to_numeric(df["h2h_away_max"], errors="coerce") -
             pd.to_numeric(df["h2h_away_min"], errors="coerce")
         )
+
+    # NaN out range features for estimated close values
+    if "_close_estimated" in df.columns:
+        est = df["_close_estimated"].fillna(False)
+        for range_col in ["odds_home_range_close", "odds_away_range_close"]:
+            if range_col in df.columns:
+                df.loc[est, range_col] = np.nan
 
     # --- Overround as market confidence ---
     if "odds_overround" in df.columns:
@@ -1817,7 +1831,7 @@ def compute_sample_weights(years, decay=0.9):
     return decay ** (max_yr - years)
 
 
-def select_top_features(X_train, y_train, feature_cols, sw, top_n=50):
+def select_top_features(X_train, y_train, feature_cols, sw, top_n=30):
     model = xgb.XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.02,
                                verbosity=0, random_state=42)
     model.fit(X_train, y_train, sample_weight=sw)
@@ -1882,7 +1896,7 @@ def walk_forward_backtest_v4(features, feature_cols):
         print(f"\n  Fold {fold_idx+1}: Train <=2013-{train_end} ({len(X_train)}) -> Test {test_year} ({len(X_test)})")
 
         # Feature selection
-        top50 = select_top_features(X_train, y_train, feature_cols, sw, top_n=50)
+        top50 = select_top_features(X_train, y_train, feature_cols, sw, top_n=30)
         X_train_top = X_train[top50]
         X_test_top = X_test[top50]
 
@@ -2375,6 +2389,38 @@ def main():
 
     # === STEP 2: Link odds ===
     matches = v3.link_odds(matches, odds)
+
+    # === STEP 2b: Backfill missing closing odds from opening (AusSportsBetting gap 2024+) ===
+    # Strategy: fill closing LEVELS (spread_home_close, h2h_home_close) from opening
+    # but leave MOVEMENT features as NaN (we don't know the actual movement).
+    # This gives the model the spread value while being honest about uncertainty.
+    _close_open_fills = [
+        ("h2h_home_close", "h2h_home_open"),
+        ("h2h_away_close", "h2h_away_open"),
+        ("line_home_close", "line_home_open"),
+        ("line_away_close", "line_away_open"),
+    ]
+    _filled = 0
+    # Track which rows were estimated so we can NaN-out movement later
+    _estimated_mask = pd.Series(False, index=matches.index)
+    for close_col, open_col in _close_open_fills:
+        if close_col in matches.columns and open_col in matches.columns:
+            _missing = matches[close_col].isna() & matches[open_col].notna()
+            if _missing.sum() > 0:
+                matches.loc[_missing, close_col] = matches.loc[_missing, open_col]
+                _estimated_mask |= _missing
+                _filled += _missing.sum()
+    # Also fill min/max from open (for range features)
+    for min_max_col, open_col in [("h2h_home_min", "h2h_home_open"), ("h2h_home_max", "h2h_home_open"),
+                                   ("h2h_away_min", "h2h_away_open"), ("h2h_away_max", "h2h_away_open")]:
+        if min_max_col in matches.columns and open_col in matches.columns:
+            _m = matches[min_max_col].isna() & matches[open_col].notna()
+            if _m.sum() > 0:
+                matches.loc[_m, min_max_col] = matches.loc[_m, open_col]
+                _filled += _m.sum()
+    matches["_close_estimated"] = _estimated_mask
+    if _filled > 0:
+        print(f"\n  STEP 2b: Backfilled {_filled} missing close→open values ({_estimated_mask.sum()} games)")
 
     # === STEP 3: Tune Elo (reuse V3) ===
     elo_params = v3.tune_elo(matches, n_trials=50)

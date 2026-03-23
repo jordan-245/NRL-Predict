@@ -47,3 +47,4 @@ Thumbs.db
 
 # ESPN Footytips browser session (contains auth cookies)
 config/.footytips_browser_state/
+catboost_info/

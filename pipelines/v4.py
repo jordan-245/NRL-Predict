@@ -74,18 +74,18 @@ logging.basicConfig(level=logging.WARNING)
 # Import V3 base functions
 from pipelines import v3
 
-# Import new V4.1 feature modules (graceful: may not exist in all environments)
+# Import V4.1 feature modules — only the two that passed ablation backtest.
+# Tested 7 groups on 1503 games (2018-2025 walk-forward). Winners:
+#   travel: +1 tip          opponent_adjusted: +2 tips
+# Removed (hurt accuracy): early_season(-3), roster_turnover(-1),
+#   game_context(-1), weather(-1), expanded_rolling(-1)
 try:
-    from features.early_season import compute_early_season_features
-    from features.roster_turnover import compute_roster_turnover_features
     from features.travel import compute_travel_features
     from features.opponent_adjusted import compute_opponent_adjusted_features
-    from features.game_context import compute_game_context_features
-    from features.weather import compute_weather_proxy_features
     _NEW_FEATURES_AVAILABLE = True
 except ImportError as _import_err:
     _NEW_FEATURES_AVAILABLE = False
-    print(f"[v4] INFO: New feature modules not yet available ({_import_err}) — skipping v4.1 features")
+    print(f"[v4] INFO: V4.1 feature modules not available ({_import_err})")
 
 # Walk-forward folds (same as V3)
 FOLDS = v3.FOLDS
@@ -962,9 +962,10 @@ def compute_team_stats_features(matches):
 ROLLING_MATCH_STATS = [
     "completion_rate", "line_breaks", "tackle_breaks", "errors", "missed_tackles",
     "all_run_metres", "possession_pct", "effective_tackle_pct", "post_contact_metres", "offloads",
-    # v4.1 expanded stats (already in match_stats.parquet — now wired into rolling computation)
-    "avg_ptb_speed", "forced_dropouts", "kicking_metres",
-    "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
+    # NOTE: 6 extra stats (avg_ptb_speed, forced_dropouts, kicking_metres,
+    # penalties_conceded, avg_set_distance, kick_defusal_pct) were tested
+    # in ablation and hurt accuracy (-1 tip). Kept in match_stats.parquet
+    # but not wired into rolling features.
 ]
 ROLLING_WINDOWS = [3, 5]
 
@@ -1639,42 +1640,19 @@ def build_v4_feature_matrix(df):
         for w in ROLLING_WINDOWS:
             feature_cols += [f"home_ms_{stat}_{w}", f"away_ms_{stat}_{w}", f"ms_diff_{stat}_{w}"]
 
-    # V4.1 Early-season dampening (4)
-    # season_data_reliability: min(round,8)/8; elo_confidence: elo_diff × reliability;
-    # home/away_form_reliability: fraction of rolling windows filled
-    feature_cols += ["season_data_reliability", "elo_confidence",
-                     "home_form_reliability", "away_form_reliability"]
-
-    # V4.1 Roster turnover (6)
-    # Fraction of prior year's core 17 / spine still present in current season
-    feature_cols += [
-        "home_roster_continuity", "away_roster_continuity",
-        "home_spine_continuity", "away_spine_continuity",
-        "roster_continuity_diff", "spine_continuity_diff",
-    ]
-
-    # V4.1 Travel distance (5)
-    # Haversine km from team home city to match venue
+    # V4.1 Travel distance (5) — ablation: +1 tip over baseline
     feature_cols += [
         "home_travel_km", "away_travel_km", "travel_diff_km",
         "away_is_interstate", "away_is_overseas",
     ]
 
-    # V4.1 Opponent-adjusted rolling stats (5 stats × 1 window × 3 = 15)
-    # Per-stat quality adjusted by opponent Elo relative to league average
+    # V4.1 Opponent-adjusted rolling stats (15) — ablation: +2 tips over baseline
     for stat in ["completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles"]:
         feature_cols += [f"home_oa_{stat}_5", f"away_oa_{stat}_5", f"oa_diff_{stat}_5"]
 
-    # V4.1 Game context (4)
-    # Finals pressure, elimination game flag, nothing-to-lose differential
-    feature_cols += [
-        "home_finals_pressure", "away_finals_pressure",
-        "is_elimination", "nothing_to_lose_diff",
-    ]
-
-    # V4.1 Weather proxy (3)
-    # Season/month/venue-latitude estimates of weather conditions
-    feature_cols += ["is_wet_season", "is_cold_game", "is_hot_game"]
+    # NOTE: The following V4.1 groups were tested and REMOVED (hurt accuracy):
+    # early_season (-3 tips), roster_turnover (-1), game_context (-1),
+    # weather (-1), expanded_rolling (-1). Code kept in features/ for future re-eval.
 
     # Filter to existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]
@@ -2399,16 +2377,12 @@ def main():
         print("  WARNING: player_match_stats.parquet not found — player form features will be NaN")
     matches = compute_player_form_features(matches, _player_stats)
 
-    # === STEP 6b: V4.1 New feature modules ===
+    # === STEP 6b: V4.1 features (ablation-validated only) ===
     if _NEW_FEATURES_AVAILABLE:
-        matches = compute_early_season_features(matches)
-        matches = compute_roster_turnover_features(matches)
         matches = compute_travel_features(matches)
         matches = compute_opponent_adjusted_features(matches, _match_stats)
-        matches = compute_game_context_features(matches)
-        matches = compute_weather_proxy_features(matches)
     else:
-        print("  INFO: Skipping v4.1 feature modules (not available in this environment)")
+        print("  INFO: Skipping v4.1 feature modules (not available)")
 
     # === STEP 7: Build V4 feature matrix ===
     features, feature_cols = build_v4_feature_matrix(matches)

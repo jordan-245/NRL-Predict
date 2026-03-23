@@ -247,18 +247,11 @@ FEATURE_COLS = [
     # Squad disruption: player changes vs previous game (6)
     "home_spine_changes", "away_spine_changes", "spine_changes_diff",
     "home_squad_turnover", "away_squad_turnover", "squad_turnover_diff",
-    # === V5 NEW FEATURES ===
-    # Early-season dampening (3)
-    "season_data_reliability", "elo_confidence",
-    "home_form_reliability", "away_form_reliability",
-    # Roster continuity (6)
-    "home_roster_continuity", "away_roster_continuity",
-    "home_spine_continuity", "away_spine_continuity",
-    "roster_continuity_diff", "spine_continuity_diff",
-    # Travel distance (5)
+    # === V4.1 FEATURES (ablation-validated) ===
+    # Travel distance (5) — ablation: +1 tip
     "home_travel_km", "away_travel_km", "travel_diff_km",
     "away_is_interstate", "away_is_overseas",
-    # Opponent-adjusted rolling stats (15: 5 stats × home/away/diff)
+    # Opponent-adjusted rolling stats (15) — ablation: +2 tips
     *[f"home_oa_{s}_5" for s in [
         "completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles",
     ]],
@@ -267,24 +260,6 @@ FEATURE_COLS = [
     ]],
     *[f"oa_diff_{s}_5" for s in [
         "completion_rate", "line_breaks", "errors", "all_run_metres", "missed_tackles",
-    ]],
-    # Game context (4)
-    "home_finals_pressure", "away_finals_pressure",
-    "is_elimination", "nothing_to_lose_diff",
-    # Weather proxy (3)
-    "is_wet_season", "is_cold_game", "is_hot_game",
-    # Expanded rolling match stats — 6 new stats × 2 windows × 3 = 36 features
-    *[f"home_ms_{s}_{w}" for w in [3, 5] for s in [
-        "avg_ptb_speed", "forced_dropouts", "kicking_metres",
-        "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
-    ]],
-    *[f"away_ms_{s}_{w}" for w in [3, 5] for s in [
-        "avg_ptb_speed", "forced_dropouts", "kicking_metres",
-        "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
-    ]],
-    *[f"ms_diff_{s}_{w}" for w in [3, 5] for s in [
-        "avg_ptb_speed", "forced_dropouts", "kicking_metres",
-        "penalties_conceded", "avg_set_distance", "kick_defusal_pct",
     ]],
 ]
 
@@ -772,46 +747,16 @@ def build_features(matches: pd.DataFrame, ladders: pd.DataFrame,
     # Player-level form features (spine form, squad quality, disruption)
     all_matches = v4.compute_player_form_features(all_matches, player_match_stats)
 
-    # V5 new feature modules (gracefully skip if module not yet available)
-    # Early-season dampening (season_data_reliability, elo_confidence, form_reliability)
-    try:
-        from features.early_season import compute_early_season_features
-        all_matches = compute_early_season_features(all_matches)
-    except ImportError:
-        pass
-
-    # Off-season roster turnover (continuity vs prior year's core squad)
-    try:
-        from features.roster_turnover import compute_roster_turnover_features
-        all_matches = compute_roster_turnover_features(all_matches)
-    except ImportError:
-        pass
-
-    # Travel distance (home_travel_km, away_travel_km, away_is_interstate, etc.)
+    # V4.1 features (ablation-validated: travel +1 tip, opponent-adjusted +2 tips)
     try:
         from features.travel import compute_travel_features
         all_matches = compute_travel_features(all_matches)
     except ImportError:
         pass
 
-    # Opponent-adjusted rolling stats (oa_completion_rate_5, etc.)
     try:
         from features.opponent_adjusted import compute_opponent_adjusted_features
         all_matches = compute_opponent_adjusted_features(all_matches, match_stats)
-    except ImportError:
-        pass
-
-    # Game context (finals_pressure, is_elimination, nothing_to_lose_diff)
-    try:
-        from features.game_context import compute_game_context_features
-        all_matches = compute_game_context_features(all_matches)
-    except ImportError:
-        pass
-
-    # Weather proxy (is_wet_season, is_cold_game, is_hot_game)
-    try:
-        from features.weather import compute_weather_proxy_features
-        all_matches = compute_weather_proxy_features(all_matches)
     except ImportError:
         pass
 

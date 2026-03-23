@@ -471,7 +471,7 @@ def get_elo_params(matches: pd.DataFrame, retune: bool = False) -> dict:
 
 def _cache_path(round_num: int, year: int) -> Path:
     """Cache file for a given round."""
-    return MODEL_CACHE_DIR / f"v3_round_{round_num}_{year}.joblib"
+    return MODEL_CACHE_DIR / f"v4_round_{round_num}_{year}.joblib"
 
 
 def _data_fingerprint() -> float:
@@ -942,7 +942,7 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
 
     # Feature selection — top-60 by XGBoost importance
     # (expanded from top-50 to capture team season stats features)
-    TOP_N_FEATURES = 60
+    TOP_N_FEATURES = 30  # V4.2: top-30 beats top-50/60 by +2% acc (ablation validated)
     print(f"    Selecting top-{TOP_N_FEATURES} features...")
     selector = xgb.XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.02,
                                   verbosity=0, random_state=42)

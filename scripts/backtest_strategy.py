@@ -145,15 +145,16 @@ def walk_forward_predictions(all_data, feature_cols, test_years, min_train_year)
             X_train[col] = X_train[col].fillna(fill_val)
             X_test[col] = X_test[col].fillna(fill_val)
 
-        # Feature selection — top 50
+        # Feature selection — top 30 (aligned with production predict_round.py)
+        TOP_N = 30
         selector = xgb.XGBClassifier(n_estimators=200, max_depth=3,
                                       learning_rate=0.02, verbosity=0,
                                       random_state=42)
         selector.fit(X_train, y_train, sample_weight=sample_weights)
         imp = pd.Series(selector.feature_importances_, index=feature_cols)
-        top50 = list(imp.sort_values(ascending=False).head(50).index)
+        top50 = list(imp.sort_values(ascending=False).head(TOP_N).index)
 
-        # Train CatBoost on top-50
+        # Train CatBoost on top-N
         model = CatBoostClassifier(**BEST_CAT_PARAMS)
         model.fit(X_train[top50], y_train, sample_weight=sample_weights)
         model_probs = np.clip(model.predict_proba(X_test[top50])[:, 1], 1e-7, 1-1e-7)
@@ -439,7 +440,7 @@ def main():
 
     # Load data
     print("\n  Loading data...")
-    matches, ladders, odds = load_historical_data()
+    matches, ladders, odds, match_stats, player_match_stats = load_historical_data()
 
     # Elo params
     from predict_round import get_elo_params

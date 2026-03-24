@@ -1033,14 +1033,43 @@ def train_and_predict(historical: pd.DataFrame, upcoming: pd.DataFrame,
 
     meta_blended = meta_lr.predict_proba(X_meta_pred)[:, 1]
 
-    # Fallback: also compute simple linear blend
-    blended_linear = np.zeros(len(upcoming), dtype=float)
-    for model_name, weight in BLEND_WEIGHTS.items():
-        blended_linear += weight * predictions[model_name]
-    blended_linear += BLEND_ODDS_WEIGHT * odds_probs
+    # --- Decide blend strategy: meta-learner vs linear ---
+    # The meta-learner amplifies model-odds disagreement.  When many top
+    # features are NaN (median-filled), the CatBoost model produces poor
+    # predictions that diverge from odds, and the meta-learner's penalty
+    # terms (abs_diff, prob_diff) crush the blended output toward 0/1
+    # instead of trusting the odds signal.  Use linear blend when model
+    # predictions are unreliable (early rounds or sparse features).
+    if "round" in upcoming.columns and len(upcoming) > 0:
+        try:
+            round_number = int(pd.to_numeric(upcoming["round"], errors="coerce").median())
+        except (ValueError, TypeError):
+            round_number = 6
+    else:
+        round_number = 6
 
-    # Use meta-learner as primary, with safety clip
-    blended = np.clip(meta_blended, 0.01, 0.99)
+    pred_nan_rate = X_pred_raw[top50].isna().mean().mean()
+    model_weight, odds_weight = _get_round_blend_weights(round_number)
+    use_meta = (round_number >= 6 and pred_nan_rate < 0.3)
+
+    if use_meta:
+        blended = np.clip(meta_blended, 0.01, 0.99)
+        print(f"    Blend: meta-learner (round {round_number}, "
+              f"{pred_nan_rate:.0%} top features NaN)")
+    else:
+        blended = model_weight * cat_pred + odds_weight * odds_probs
+        blended = np.clip(blended, 0.01, 0.99)
+        reasons = []
+        if round_number < 6:
+            reasons.append(f"early round {round_number}")
+        if pred_nan_rate >= 0.3:
+            reasons.append(f"{pred_nan_rate:.0%} top features NaN")
+        print(f"    Blend: linear {model_weight:.0%}/{odds_weight:.0%} "
+              f"({', '.join(reasons)})")
+
+    # Apply isotonic calibration (consistent with score_with_models)
+    blended = calibrator.predict(blended)
+    blended = np.clip(blended, 0.01, 0.99)
 
     # Build results DataFrame
     results = upcoming[["home_team", "away_team", "venue", "date", "round"]].copy()

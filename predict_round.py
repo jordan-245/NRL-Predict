@@ -1341,6 +1341,131 @@ def load_upcoming_from_api(round_num: int | None, year: int) -> tuple[pd.DataFra
     return df, detected_round
 
 
+def _enrich_upcoming_data(upcoming: pd.DataFrame, round_num: int, year: int) -> pd.DataFrame:
+    """Enrich upcoming match data with venue, spread, opening odds, and weather.
+
+    The Odds API returns minimal data (h2h closing odds + spread).  Many
+    top-30 features are NaN because the pipeline expects columns that the
+    API doesn't provide.  This function fills the gaps from other sources:
+
+      1. Venue names from NRL.com team lists  (→ venue win rate, weather)
+      2. Spread mapping: spread_home → line_home_close/open
+      3. Opening odds: mirror from closing (assume no movement)
+      4. Weather forecast from Open-Meteo (appended to weather_actual.parquet)
+    """
+    print(f"\n  ENRICHMENT: Filling gaps in API data...")
+    df = upcoming.copy()
+    n = len(df)
+    enrichments = []
+
+    # --- 1. Venue from NRL.com team lists ---
+    if df["venue"].isna().all() or (df["venue"].astype(str) == "").all():
+        try:
+            from scraping.nrl_teamlists import fetch_round_teamlists
+            teamlists = fetch_round_teamlists(year, round_num, use_cache=True, delay=0.3)
+            if teamlists:
+                venue_map = {}
+                for tl in teamlists:
+                    venue_map[(tl["home_team"], tl["away_team"])] = tl.get("venue", "")
+                for i, row in df.iterrows():
+                    v = venue_map.get((row["home_team"], row["away_team"]), "")
+                    if v:
+                        df.at[i, "venue"] = v
+                filled = df["venue"].astype(str).ne("").sum()
+                enrichments.append(f"Venues: {filled}/{n} from NRL.com team lists")
+        except Exception as e:
+            enrichments.append(f"Venues: failed ({e})")
+
+    # --- 2. Spread mapping (API has spread_home, pipeline expects line_home_*) ---
+    if "spread_home" in df.columns and df["spread_home"].notna().any():
+        for col in ["line_home_close", "line_home_open", "line_home_min", "line_home_max"]:
+            df[col] = df["spread_home"]
+        filled = df["spread_home"].notna().sum()
+        enrichments.append(f"Spreads: {filled}/{n} mapped to line_home_close/open")
+
+    # --- 3. Opening odds: mirror closing (no movement) ---
+    if "h2h_home" in df.columns and "h2h_away" in df.columns:
+        for src, dst in [("h2h_home", "h2h_home_open"), ("h2h_away", "h2h_away_open"),
+                         ("h2h_home", "h2h_home_close"), ("h2h_away", "h2h_away_close"),
+                         ("h2h_home", "h2h_home_min"), ("h2h_away", "h2h_away_min"),
+                         ("h2h_home", "h2h_home_max"), ("h2h_away", "h2h_away_max")]:
+            if dst not in df.columns or df[dst].isna().all():
+                df[dst] = df[src]
+        enrichments.append(f"Opening odds: mirrored from closing (no movement)")
+
+    # --- 4. Weather forecast from Open-Meteo ---
+    try:
+        from scraping.open_meteo import lookup_venue_coords
+        import requests as _req
+
+        FORECAST_API = "https://api.open-meteo.com/v1/forecast"
+        weather_rows = []
+
+        for _, row in df.iterrows():
+            venue = str(row.get("venue", ""))
+            date_val = row.get("date")
+            if not venue or pd.isna(date_val):
+                continue
+
+            coords = lookup_venue_coords(venue)
+            if coords is None:
+                continue
+
+            lat, lon = coords
+            d = pd.Timestamp(date_val).strftime("%Y-%m-%d")
+            try:
+                params = {
+                    "latitude": round(lat, 4), "longitude": round(lon, 4),
+                    "daily": ("temperature_2m_max,temperature_2m_min,"
+                              "precipitation_sum,wind_speed_10m_max,weather_code"),
+                    "start_date": d, "end_date": d,
+                    "timezone": "auto",
+                }
+                r = _req.get(FORECAST_API, params=params, timeout=15)
+                r.raise_for_status()
+                data = r.json().get("daily", {})
+
+                t_max = (data.get("temperature_2m_max") or [None])[0]
+                t_min = (data.get("temperature_2m_min") or [None])[0]
+                temp = round((t_max + t_min) / 2, 1) if t_max and t_min else None
+
+                weather_rows.append({
+                    "year": year,
+                    "round": str(round_num),
+                    "home_team": row["home_team"],
+                    "away_team": row["away_team"],
+                    "temperature_c": temp,
+                    "precipitation_mm": round((data.get("precipitation_sum") or [0])[0], 1),
+                    "wind_speed_kmh": round((data.get("wind_speed_10m_max") or [0])[0], 1),
+                    "weather_code": int((data.get("weather_code") or [0])[0]),
+                })
+            except Exception:
+                pass
+            time.sleep(0.15)
+
+        if weather_rows:
+            weather_path = PROCESSED_DIR / "weather_actual.parquet"
+            new_weather = pd.DataFrame(weather_rows)
+            if weather_path.exists():
+                existing = pd.read_parquet(weather_path)
+                # Remove any existing entries for this round (avoid duplicates)
+                mask = ~((existing["year"].astype(int) == year) &
+                         (existing["round"].astype(str) == str(round_num)))
+                existing = existing[mask]
+                combined = pd.concat([existing, new_weather], ignore_index=True)
+            else:
+                combined = new_weather
+            combined.to_parquet(weather_path, index=False)
+            enrichments.append(f"Weather: {len(weather_rows)}/{n} forecasts from Open-Meteo")
+    except Exception as e:
+        enrichments.append(f"Weather: failed ({e})")
+
+    for e in enrichments:
+        print(f"    {e}")
+
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser(description="NRL Tipping Comp Predictor")
     parser.add_argument("--round", type=int, default=None,
@@ -1384,6 +1509,9 @@ def main():
             sys.exit(1)
 
         print(f"\n  Round {round_num}: {len(upcoming_api)} matches")
+
+        # Enrich API data with venue, spread mapping, opening odds, weather
+        upcoming_api = _enrich_upcoming_data(upcoming_api, round_num, year)
 
         # Try fast path (cached models + fresh odds)
         cp = _cache_path(round_num, year)

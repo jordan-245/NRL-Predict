@@ -1106,3 +1106,295 @@ Baseline saved: /root/NRL-Predict/data/teamlists/baselines/round_3_2026.json (8 
 ✅ Done!
 2026-03-17 17:03:50 ── Tips submitted: 8 tips ──
 2026-03-17 17:03:51 ✓ Verified: 8 tips on file
+2026-03-24 17:00:01 ── NRL Tuesday tipping starting ──
+
+======================================================================
+  NRL 2026 Prediction Pipeline (auto mode)
+======================================================================
+
+  STEP 1: Fetching from Odds API...
+  Fetching fixtures from Odds API (free)...
+  [Odds API] Quota: 98 used, 402 remaining
+  Found 8 upcoming events
+  Fetching odds from Odds API (h2h + spreads)...
+  [Odds API] Quota: 100 used, 400 remaining
+  Round 4: 8 matches
+  Odds available for 8/8 matches
+
+  Round 4: 8 matches
+
+  STEP 2: Loading historical data
+  Loading historical data...
+  Matches: 2769  |  Ladders: 6156  |  Odds: 3445  |  Match stats: 2188  |  Player stats: 76440
+
+  STEP 3: Elo parameters
+  Elo params (cached): K=15.0, HA=34.1, Reset=0.492, MOV=linear
+
+  STEP 4: Feature engineering
+
+================================================================================
+  STEP 2: LINKING ODDS DATA
+================================================================================
+  Exact: 2582, Fuzzy: 7, Unmatched: 180
+  With odds: 2589/2769 (93.5%)
+  Dropped 180 unplayed historical matches (NaN scores)
+
+  Building features for 2597 matches (8 upcoming)...
+
+================================================================================
+  STEP 4: BACKFILLING ELO WITH OPTIMAL PARAMS
+================================================================================
+  Elo backfilled for 2597 matches
+
+================================================================================
+  STEP 5: COMPUTING ROLLING FORM FEATURES
+================================================================================
+  Added 40 rolling/form features
+
+================================================================================
+  STEP 6: COMPUTING HEAD-TO-HEAD FEATURES
+================================================================================
+  Added 9 H2H columns
+
+================================================================================
+  STEP 7: COMPUTING LADDER FEATURES (incl. home/away splits)
+================================================================================
+  Ladder data available for 2420/2597 matches
+  Added ladder + home/away split features
+
+================================================================================
+  STEP 8: COMPUTING VENUE FEATURES
+================================================================================
+  Added venue features (is_home_ground, home/away_venue_win_rate, venue_avg_total_score, is_neutral_venue)
+
+================================================================================
+  STEP 9: COMPUTING RICH ODDS FEATURES
+================================================================================
+  Odds features computed for 2597/2597 matches
+
+================================================================================
+  STEP 10: COMPUTING SCHEDULE FEATURES
+================================================================================
+  Added schedule features
+
+================================================================================
+  STEP 11: COMPUTING CONTEXTUAL FEATURES
+================================================================================
+  Added contextual features
+
+================================================================================
+  STEP 12: COMPUTING ENGINEERED & MOMENTUM FEATURES
+================================================================================
+  Added engineered features
+
+================================================================================
+  V4: COMPUTING ENHANCED ODDS FEATURES
+================================================================================
+  Added 13 new V4 odds features
+
+================================================================================
+  V4: COMPUTING SCORING CONSISTENCY & TREND FEATURES
+================================================================================
+  Added 31 scoring consistency & trend features
+
+================================================================================
+  V4: COMPUTING ATTENDANCE FEATURES
+================================================================================
+  Added attendance features (2494/2597 valid)
+
+================================================================================
+  V4: COMPUTING KICKOFF TIME FEATURES
+================================================================================
+  Added kickoff time features (2597/2597 valid)
+
+================================================================================
+  V4: COMPUTING LINEUP STABILITY FEATURES
+================================================================================
+  Added lineup stability features from player_appearances (2203/2597 valid)
+
+================================================================================
+  V4: COMPUTING PLAYER IMPACT FEATURES
+================================================================================
+  Added player impact features (2211/2597 valid)
+
+================================================================================
+  V4: COMPUTING TEAM SEASON STATS FEATURES
+================================================================================
+  Added 78 team stats features (92% coverage)
+
+================================================================================
+  V4: COMPUTING REFEREE FEATURES
+================================================================================
+  Added referee features (2421/2597 valid, 23 unique refs)
+
+================================================================================
+  V4: COMPUTING ENGINEERED INTERACTION FEATURES
+================================================================================
+  Added 14 V4 engineered features
+
+================================================================================
+  V4: COMPUTING ROLLING MATCH STATS FEATURES
+================================================================================
+  Joined 2140 match-stat rows to matches
+  Added 60 rolling match stats features (10 stats × 2 windows × 3) | Coverage: 69%
+
+================================================================================
+  V4: COMPUTING PLAYER FORM FEATURES
+================================================================================
+  Joined 74784 player-game rows across 2140 matches
+  Built rolling lookup for 74784 (player, match) entries
+  Added 42 player form features | Coverage: 82%
+
+================================================================================
+  FEATURES: COMPUTING TRAVEL DISTANCE FEATURES
+================================================================================
+  home_travel_km  : mean=169 km  (venue resolved in 2589/2597 rows)
+  away_travel_km  : mean=754 km
+  away_is_interstate : 1137 matches (43.8%)
+  away_is_overseas   : 284 matches (10.9%)
+  Total new columns: 5
+
+================================================================================
+  V4.1: COMPUTING OPPONENT-ADJUSTED ROLLING STATS
+================================================================================
+  Added 15 opponent-adjusted features (5 stats × 5-game window) | Coverage: 72%
+
+================================================================================
+  V4.2: COMPUTING REAL WEATHER + GROUND CONDITION FEATURES
+================================================================================
+  Open-Meteo coverage: 87.1% (2262/2597)
+  Ground conditions coverage: 96.3% (2500/2597)
+
+  Added 10 weather/ground features:
+    temperature_c            : 2262/2597 valid, mean=16.20
+    precipitation_mm         : 2262/2597 valid, mean=2.24
+    wind_speed_kmh           : 2262/2597 valid, mean=17.80
+    is_rainy                 : 2262/2597 valid, 27.1% true
+    is_windy                 : 2262/2597 valid, 6.4% true
+    is_cold_actual           : 2262/2597 valid, 17.6% true
+    ground_not_good          : 2500/2597 valid, 9.0% true
+    ground_severity          : 2597/2597 valid, mean=0.14
+    rain_x_wind              : 2262/2597 valid, mean=49.72
+    bad_conditions_score     : 2597/2597 valid, mean=0.43
+  Training set: 2580 matches  |  Prediction set: 8 matches
+  Features: 410 columns
+
+  STEP 5: Model training & prediction
+
+  Training CAT_top50 + Odds blend...
+    Selecting top-30 features...
+    Training CatBoost on 30 features...
+    Training meta-learner (LR stacking)...
+    Fitting isotonic calibrator on OOF predictions...
+    Calibrator fitted on 2580 training samples
+  Model cache saved (v4_round_4_2026.joblib)
+
+===========================================================================
+  NRL TIPPING CARD - ROUND 4, 2026
+  Generated: Tuesday 24 March 2026, 05:03 PM
+===========================================================================
+
+  LOCKS (tip favourite, don't overthink)
+  -----------------------------------------------------------------
+  TIP: Sydney Roosters           ***..  (Manly Sea Eagles $2.78 v Sydney Roosters $1.45)
+       Strong favourite at 66% - don't overthink
+  TIP: New Zealand Warriors      ****.  (New Zealand Warriors $1.24 v Wests Tigers $4.12)
+       Strong favourite at 77% - don't overthink
+  TIP: Canterbury Bulldogs       ****.  (Canterbury Bulldogs $1.24 v Newcastle Knights $4.05)
+       Strong favourite at 77% - don't overthink
+  TIP: Penrith Panthers          ****.  (Penrith Panthers $1.21 v Parramatta Eels $4.41)
+       Strong favourite at 78% - don't overthink
+  TIP: Melbourne Storm           ****.  (North Queensland Cowboys $4.29 v Melbourne Storm $1.22)
+       Strong favourite at 78% - don't overthink
+
+  LEANS (default favourite, check model)
+  -----------------------------------------------------------------
+  TIP: Dolphins                  **...  (Brisbane Broncos $1.64 v Dolphins $2.27) *** FLIPPED ***
+       Model disagrees: gives Dolphins 85% (odds say Brisbane Broncos at 58%)
+
+  TOSS-UPS (use model, these are coin flips)
+  -----------------------------------------------------------------
+  TIP: Cronulla Sharks           **...  (Canberra Raiders $1.84 v Cronulla Sharks $1.97)
+       Coin flip (52%) - model picks Cronulla Sharks at 86%
+  TIP: St George Illawarra Dragons **...  (Gold Coast Titans $1.83 v St George Illawarra Dragons $1.98)
+       Coin flip (52%) - model picks St George Illawarra Dragons at 77%
+
+  =================================================================
+  FINAL TIPS
+  =================================================================
+  #   Match                                                Tip                     Mar
+  -----------------------------------------------------------------
+  1   Manly Sea Eagles v Sydney Roosters                   Sydney Roosters           7
+  2   New Zealand Warriors v Wests Tigers                  New Zealand Warriors     13
+  3   Brisbane Broncos v Dolphins                          Dolphins                  4 **
+  4   Canterbury Bulldogs v Newcastle Knights              Canterbury Bulldogs      14
+  5   Penrith Panthers v Parramatta Eels                   Penrith Panthers         14
+  6   North Queensland Cowboys v Melbourne Storm           Melbourne Storm          15
+  7   Canberra Raiders v Cronulla Sharks                   Cronulla Sharks           2 *
+  8   Gold Coast Titans v St George Illawarra Dragons      St George Illawarra Dragons    1 *
+
+  * = model pick   ** = model flipped the favourite
+
+  Avg margin this round: 9 pts
+  Use individual margins above for tiebreaker (not gut feel)
+
+  GAME DAY CHECKLIST:
+  [ ] Check final team lists 1 hour before each game
+  [ ] If a halfback/fullback/hooker is a late OUT from your tipped team:
+      -> Brisbane Broncos v Dolphins: flip if key spine player out from Dolphins
+      -> Canberra Raiders v Cronulla Sharks: flip if key spine player out from Cronulla Sharks
+      -> Gold Coast Titans v St George Illawarra Dragons: flip if key spine player out from St George Illawarra Dragons
+  [ ] Don't flip any LOCKs unless something extraordinary
+===========================================================================
+
+  Predictions saved to /root/NRL-Predict/outputs/predictions/round_4_2026.csv
+
+  Completed in 177s
+2026-03-24 17:03:04 Predictions generated
+2026-03-24 17:03:04 Capturing baseline teamlists for Round 4...
+Baseline saved: /root/NRL-Predict/data/teamlists/baselines/round_4_2026.json (8 matches)
+2026-03-24 17:03:11 Checking ESPN token...
+✗ Token expired or missing
+2026-03-24 17:03:11 Token expired/missing — refreshing...
+⚠ Token expired or missing. Refreshing...
+
+  🌐 Navigating to ESPN Footytips...
+  ⏳ Waiting for OneID...
+  ✓ Token captured (silent refresh from saved session)
+  🔑 New token valid for 23h 59m
+  🔍 Resolving member ID...
+  👤 Member ID: 9146835
+
+✅ Token saved to /root/NRL-Predict/config/.footytips_creds.json
+2026-03-24 17:03:24 Submitting tips for Round 4...
+
+📋 Loading predictions for Round 4, 2026...
+   Found 8 predictions
+
+📡 Fetching round 4 events from ESPN Footytips API...
+   Found 8 events
+   Byes: Rabbitohs
+
+🔗 Matching predictions to events...
+   Matched 8 of 8 events
+
+============================================================
+  TIPS TO SUBMIT
+============================================================
+  🔒 LOCK        Manly Sea Eagles vs Sydney Roosters  →  Sydney Roosters (margin: 16)
+  🔒 LOCK        New Zealand Warriors vs Wests Tigers  →  Wests Tigers
+  🔒 LOCK        Brisbane Broncos vs Dolphins  →  Dolphins
+  🔒 LOCK        Canterbury Bulldogs vs Newcastle Knights  →  Newcastle Knights
+  🔒 LOCK        Penrith Panthers vs Parramatta Eels  →  Parramatta Eels
+  🔒 LOCK        North Queensland Cowboys vs Melbourne Storm  →  Melbourne Storm
+  🔒 LOCK        Canberra Raiders vs Cronulla Sharks  →  Cronulla Sharks
+  🔒 LOCK        Gold Coast Titans vs St George Illawarra Dragons  →  St George Illawarra Dragons
+============================================================
+  Total tips: 8
+
+📤 Submitting 8 tip(s)...
+   ✓ Your tips have been submitted successfully
+
+✅ Done!
+2026-03-24 17:03:25 ── Tips submitted: 8 tips ──
+2026-03-24 17:03:25 ✓ Verified: 8 tips on file
